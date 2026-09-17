@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Покерный таймер</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="burger-menu">
+        <button class="burger-btn" onclick="toggleMenu()">
+            <div class="burger-line"></div>
+            <div class="burger-line"></div>
+            <div class="burger-line"></div>
+        </button>
+    </div>
+
+    <!-- ОВЕРЛЕЙ ДИСБАЛАНСА -->
+    <div class="imbalance-overlay" id="imbalanceOverlay">
+        <div class="imbalance-overlay-content">
+            <div class="imbalance-icon">⚠️</div>
+            <h2>Дисбаланс столов</h2>
+            <p id="balanceText">Разница игроков между столами 2 и более.</p>
+            <p>Перенесите игрока в другой стол для продолжения.</p>
+            <button class="imbalance-close-btn" onclick="closeBalanceOverlay()">Понятно</button>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- ЛЕВАЯ ПАНЕЛЬ: таймер → блайнды → структура -->
+        <div class="left-panel">
+            <div class="timer-section">
+                <div class="timer-center">
+                    <div class="timer-wrapper">
+                        <svg class="progress-ring" width="240" height="240">
+                            <circle class="progress-ring-bg" cx="120" cy="120" r="105"/>
+                            <circle class="progress-ring-circle" cx="120" cy="120" r="105"
+                                stroke-dasharray="659.73" stroke-dashoffset="0"/>
+                        </svg>
+                        <div class="timer-content">
+                            <div class="timer-label">ТАЙМЕР</div>
+                            <div class="level-display" id="levelDisplay">Уровень 1</div>
+                            <div class="timer-display" id="timerDisplay">10:00</div>
+                        </div>
+                    </div>
+                    <div class="timer-controls">
+                        <button class="timer-btn timer-btn-prev" onclick="prevLevel()" title="Предыдущий уровень">
+                            <i class="fas fa-backward"></i>
+                        </button>
+                        <button class="timer-btn timer-btn-start" onclick="startTimer()" title="Старт">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="timer-btn timer-btn-stop" onclick="stopTimer()" title="Пауза">
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="timer-btn timer-btn-skip" onclick="skipLevel()" title="Следующий уровень">
+                            <i class="fas fa-forward"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="blinds-row">
+                <div class="blind-display blind-mb">
+                    <span class="blind-label">МБ</span>
+                    <span class="blind-value" id="mbScore">100</span>
+                </div>
+                <div class="blind-display blind-bb">
+                    <span class="blind-label">ББ</span>
+                    <span class="blind-value" id="bbScore">200</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- СТРУКТУРА -->
+            <div class="structure-box">
+                <div class="structure-title">Структура</div>
+                <div class="structure-list" id="structureList"></div>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ ПАНЕЛЬ: столы → вход ТД → очки → выбившие -->
+        <div class="right-panel">
+            <!-- СТОЛЫ В САМОМ ВЕРХУ -->
+            <div class="tables-album">
+                <button class="album-arrow album-prev" onclick="prevTable()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="album-viewport">
+                    <div class="album-track" id="albumTrack"></div>
+                </div>
+                <button class="album-arrow album-next" onclick="nextTable()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="table-indicator" id="tableIndicator">Стол 1 / 2</div>
+
+            <div class="divider"></div>
+
+            <div class="header">
+                <h1>Общее количество входов</h1>
+                <div class="total-count" id="total">0</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- ВСЕГО ОЧКОВ -->
+            <div class="total-block">
+                <div class="total-block-title">💰 Всего очков</div>
+                <div class="total-block-value" id="prizeTotal">0</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="eliminated-box">
+                <div class="eliminated-title">🚫 Выбившие игроки</div>
+                <div class="eliminated-list" id="eliminatedList">
+                    <div class="eliminated-empty">Пока никого</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- САЙДБАР -->
+    <div class="sidebar" id="sidebar">
+        <h2>📊 Меню расчётов</h2>
+
+        <button class="reset-all-btn" onclick="resetAll()">
+            <i class="fas fa-redo"></i> Сбросить ВСЁ
+        </button>
+
+        <div class="menu-section prizepool-section">
+            <div class="section-header" onclick="toggleSection('prize')">
+                <h3><i class="fas fa-trophy"></i> Фонд очков</h3>
+                <span class="toggle-arrow">▼</span>
+            </div>
+            <div class="section-content" id="prizeSection">
+                <div class="prizepool-total" id="prizeTotalSide">0</div>
+                <div class="prizepool-deduct" id="prizeDeductSide" style="display:none;">
+                    <span>Вычет 10%:</span>
+                    <span id="prizeDeductSideVal">0</span>
+                </div>
+                <div class="prizepool-parts" id="prizeParts"></div>
+            </div>
+        </div>
+
+        <div class="menu-section auto-calculation">
+            <div class="section-header" onclick="toggleSection('auto')">
+                <h3><i class="fas fa-calculator"></i> Расчёт очков</h3>
+                <span class="toggle-arrow">▼</span>
+            </div>
+            <div class="section-content" id="autoSection">
+                <div class="multiplier-selector">
+                    <button class="multiplier-btn" onclick="selectMultiplier(100)">× 100</button>
+                    <button class="multiplier-btn active" onclick="selectMultiplier(150)">× 150</button>
+                    <button class="multiplier-btn" onclick="selectMultiplier(200)">× 200</button>
+                </div>
+                <div class="custom-multiplier">
+                    <input type="number" id="customMultiplier" class="setting-input" placeholder="Свой множитель" min="1">
+                    <button class="apply-setting-btn" onclick="applyCustomMultiplier()">
+                        <i class="fas fa-check"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="menu-section distribution-section">
+            <div class="section-header" onclick="toggleSection('dist')">
+                <h3><i class="fas fa-chart-pie"></i> Распределение очков</h3>
+                <span class="toggle-arrow">▼</span>
+            </div>
+            <div class="section-content" id="distSection">
+                <div class="deduct-checkbox">
+                    <label>
+                        <input type="checkbox" id="deductTenPercent" onchange="toggleDeductTenPercent()">
+                        Вычесть 10%
+                    </label>
+                </div>
+                <div class="option-buttons">
+                    <button class="option-btn active" onclick="selectOption(2)">1, 2<br><small>65% / 35%</small></button>
+                    <button class="option-btn" onclick="selectOption(3)">1, 2, 3<br><small>50% / 30% / 20%</small></button>
+                    <button class="option-btn" onclick="selectOption(4)">1, 2, 3, 4<br><small>40% / 30% / 20% / 10%</small></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ИМЕНИ -->
+    <div class="modal" id="nameModal">
+        <div class="modal-content">
+            <h3>Имя игрока</h3>
+            <input type="text" id="playerNameInput" class="modal-input" placeholder="Имя" maxlength="20">
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeNameModal()">Отмена</button>
+                <button class="modal-btn modal-btn-confirm" onclick="confirmPlayerName()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
