@@ -28,15 +28,15 @@
     </div>
 
     <div class="main-layout">
-        <!-- ЛЕВАЯ ПАНЕЛЬ: таймер → блайнды → структура -->
+        <!-- ЛЕВАЯ ПАНЕЛЬ -->
         <div class="left-panel">
             <div class="timer-section">
                 <div class="timer-center">
                     <div class="timer-wrapper">
-                        <svg class="progress-ring" width="240" height="240">
-                            <circle class="progress-ring-bg" cx="120" cy="120" r="105"/>
-                            <circle class="progress-ring-circle" cx="120" cy="120" r="105"
-                                stroke-dasharray="659.73" stroke-dashoffset="0"/>
+                        <svg class="progress-ring" width="300" height="300">
+                            <circle class="progress-ring-bg" cx="150" cy="150" r="135"/>
+                            <circle class="progress-ring-circle" cx="150" cy="150" r="135"
+                                stroke-dasharray="848.23" stroke-dashoffset="0"/>
                         </svg>
                         <div class="timer-content">
                             <div class="timer-label">ТАЙМЕР</div>
@@ -76,16 +76,14 @@
 
             <div class="divider"></div>
 
-            <!-- СТРУКТУРА -->
             <div class="structure-box">
                 <div class="structure-title">Структура</div>
                 <div class="structure-list" id="structureList"></div>
             </div>
         </div>
 
-        <!-- ПРАВАЯ ПАНЕЛЬ: столы → вход ТД → очки → выбившие -->
+        <!-- ПРАВАЯ ПАНЕЛЬ -->
         <div class="right-panel">
-            <!-- СТОЛЫ В САМОМ ВЕРХУ -->
             <div class="tables-album">
                 <button class="album-arrow album-prev" onclick="prevTable()">
                     <i class="fas fa-chevron-left"></i>
@@ -96,6 +94,9 @@
                 <button class="album-arrow album-next" onclick="nextTable()">
                     <i class="fas fa-chevron-right"></i>
                 </button>
+                <button class="album-arrow album-add" id="addTableBtn" onclick="addTable()" title="Добавить стол">
+                    <i class="fas fa-plus"></i>
+                </button>
             </div>
 
             <div class="table-indicator" id="tableIndicator">Стол 1 / 2</div>
@@ -103,13 +104,12 @@
             <div class="divider"></div>
 
             <div class="header">
-                <h1>Общее количество входов</h1>
+                <h1>Вход ТД</h1>
                 <div class="total-count" id="total">0</div>
             </div>
 
             <div class="divider"></div>
 
-            <!-- ВСЕГО ОЧКОВ -->
             <div class="total-block">
                 <div class="total-block-title">💰 Всего очков</div>
                 <div class="total-block-value" id="prizeTotal">0</div>

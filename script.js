@@ -1,10 +1,17 @@
 // ===== ДАННЫЕ =====
+const SEATS_PER_TABLE = 9;
+const MAX_TABLES = 4;
+
+function emptyTable() {
+    return {
+        players: Array(SEATS_PER_TABLE).fill(0),
+        names: Array(SEATS_PER_TABLE).fill('')
+    };
+}
+
 let appData = {
     total: 0,
-    tables: [
-        { players: [0,0,0,0,0,0,0,0], names: ['','','','','','','',''] },
-        { players: [0,0,0,0,0,0,0,0], names: ['','','','','','','',''] }
-    ],
+    tables: [emptyTable(), emptyTable()],
     eliminated: []
 };
 
@@ -41,6 +48,7 @@ window.onload = function() {
     renderTables();
     updateAllUI();
     initializeMenuSections();
+    updateAddTableButton();
     checkBalance(true);
 };
 
@@ -51,6 +59,20 @@ function loadData() {
             const d = JSON.parse(saved);
             if (d.appData) {
                 appData = d.appData;
+
+                // Миграция: если в столах не 9 мест — дополняем/обрезаем
+                appData.tables = (appData.tables || []).map(t => {
+                    const players = (t.players || []).slice(0, SEATS_PER_TABLE);
+                    const names = (t.names || []).slice(0, SEATS_PER_TABLE);
+                    while (players.length < SEATS_PER_TABLE) players.push(0);
+                    while (names.length < SEATS_PER_TABLE) names.push('');
+                    return { players, names };
+                });
+
+                if (appData.tables.length < 2) {
+                    appData.tables.push(emptyTable());
+                }
+
                 appData.eliminated = (appData.eliminated || []).map(e => {
                     if (typeof e === 'string') return { name: e, order: 0, tableNumber: 0 };
                     return {
@@ -90,6 +112,32 @@ function saveData() {
     } catch(e) {}
 }
 
+// ===== ДОБАВИТЬ СТОЛ =====
+function addTable() {
+    if (appData.tables.length >= MAX_TABLES) return;
+    appData.tables.push(emptyTable());
+    renderTables();
+    updateAddTableButton();
+    updateTableIndicator();
+    saveData();
+    // Переключаемся на новый стол
+    currentTableIndex = appData.tables.length - 1;
+    updateAlbumPosition();
+    updateTableIndicator();
+}
+
+function updateAddTableButton() {
+    const btn = document.getElementById('addTableBtn');
+    if (!btn) return;
+    if (appData.tables.length >= MAX_TABLES) {
+        btn.disabled = true;
+        btn.style.display = 'none';
+    } else {
+        btn.disabled = false;
+        btn.style.display = 'flex';
+    }
+}
+
 // ===== РЕНДЕР СТОЛОВ =====
 function renderTables() {
     const track = document.getElementById('albumTrack');
@@ -114,7 +162,7 @@ function renderTables() {
         grid.className = 'buttons-grid';
         grid.dataset.table = ti;
 
-        for (let si = 0; si < 8; si++) {
+        for (let si = 0; si < SEATS_PER_TABLE; si++) {
             grid.appendChild(createSeatButton(ti, si));
         }
 
@@ -348,16 +396,26 @@ function onDrop(e) {
 }
 
 // ===== ДИСБАЛАНС =====
-function getImbalanceInfo() {
-    const counts = appData.tables.map(t =>
-        t.names.filter((n, i) => n && !appData.eliminated.some(e => e.name === n)).length
+// Считаем активных (не выбитых) игроков по всем столам
+function getActiveCounts() {
+    return appData.tables.map(t =>
+        t.names.filter(n => n && !appData.eliminated.some(e => e.name === n)).length
     );
-    const diff = Math.abs(counts[0] - counts[1]);
+}
+
+function getImbalanceInfo() {
+    const counts = getActiveCounts();
+    const max = Math.max(...counts);
+    const min = Math.min(...counts);
+    const diff = max - min;
     const imbalanced = diff >= 2;
+
+    // Все столы с максимальным количеством — перегружены
     const overloadedTables = [];
     if (imbalanced) {
-        if (counts[0] > counts[1]) overloadedTables.push(0);
-        if (counts[1] > counts[0]) overloadedTables.push(1);
+        counts.forEach((c, i) => {
+            if (c === max) overloadedTables.push(i);
+        });
     }
     return { counts, diff, imbalanced, overloadedTables };
 }
@@ -370,8 +428,12 @@ function checkBalance(silent = false) {
     const overlay = document.getElementById('imbalanceOverlay');
     if (info.imbalanced) {
         stopTimer();
+
+        // Текст со всеми столами
+        const parts = info.counts.map((c, i) => `Стол ${i + 1}: ${c}`).join(', ');
         document.getElementById('balanceText').textContent =
-            `Стол 1: ${info.counts[0]} игроков, Стол 2: ${info.counts[1]} игроков. Разница ${info.diff}.`;
+            `${parts}. Разница ${info.diff}.`;
+
         if (!silent && overlay) {
             overlay.classList.add('active');
         }
@@ -550,15 +612,12 @@ function updatePrizePool() {
     const totalAmount = totalClicks * currentMultiplier;
     const deduct = Math.round(totalAmount * 0.1);
 
-    // Итог с учётом галочки
     let display = totalAmount;
     if (deductTenPercent) display = totalAmount - deduct;
 
-    // На главной панели — только число, без единиц и без строки про вычет
     const lt = document.getElementById('prizeTotal');
     if (lt) lt.textContent = formatNumber(display);
 
-    // В сайдбаре — то же число + строка вычета
     const st = document.getElementById('prizeTotalSide');
     if (st) st.textContent = formatNumber(display);
 
@@ -711,10 +770,7 @@ function resetAll() {
     stopTimer();
     appData = {
         total: 0,
-        tables: [
-            { players: [0,0,0,0,0,0,0,0], names: ['','','','','','','',''] },
-            { players: [0,0,0,0,0,0,0,0], names: ['','','','','','','',''] }
-        ],
+        tables: [emptyTable(), emptyTable()],
         eliminated: []
     };
     level = 1;
@@ -730,6 +786,7 @@ function resetAll() {
     closeBalanceOverlay();
 
     renderTables();
+    updateAddTableButton();
     updateAllUI();
     initializeMenuSections();
     saveData();
