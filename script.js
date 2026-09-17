@@ -3,7 +3,6 @@ const SEATS_PER_TABLE = 9;
 const MAX_TABLES = 3;
 const MIN_TABLES = 1;
 
-
 function emptyTable() {
     return {
         players: Array(SEATS_PER_TABLE).fill(0),
@@ -71,8 +70,11 @@ function loadData() {
                     return { players, names };
                 });
 
-                if (appData.tables.length < 2) {
+                if (appData.tables.length < MIN_TABLES) {
                     appData.tables.push(emptyTable());
+                }
+                if (appData.tables.length > MAX_TABLES) {
+                    appData.tables = appData.tables.slice(0, MAX_TABLES);
                 }
 
                 appData.eliminated = (appData.eliminated || []).map(e => {
@@ -114,7 +116,7 @@ function saveData() {
     } catch(e) {}
 }
 
-// ===== ДОБАВИТЬ СТОЛ =====
+// ===== ДОБАВИТЬ / УДАЛИТЬ СТОЛ =====
 function addTable() {
     if (appData.tables.length >= MAX_TABLES) return;
     appData.tables.push(emptyTable());
@@ -124,32 +126,36 @@ function addTable() {
     updateTableIndicator();
     updateAlbumPosition();
     saveData();
+    // Новый стол пустой — дисбаланс не проверяем
 }
+
 function removeTable() {
     if (appData.tables.length <= MIN_TABLES) return;
 
     const removedIndex = currentTableIndex;
     const table = appData.tables[removedIndex];
 
-    // Проверяем, есть ли в столе активные игроки
-    const activeNames = table.names.filter((n, i) =>
+    // Есть ли в столе игроки с именем (включая выбитых)
+    const hasAnyPlayers = table.names.some(n => n);
+
+    // Активные игроки (не выбитые)
+    const activeNames = table.names.filter(n =>
         n && !appData.eliminated.some(e => e.name === n)
     );
 
+    // Блокировка: если есть хотя бы один активный игрок — не удаляем
     if (activeNames.length > 0) {
-        if (!confirm(`В столе ${removedIndex + 1} есть ${activeNames.length} активных игроков. Удалить стол вместе с ними?`)) {
+        alert(`Нельзя удалить стол: в нём ${activeNames.length} активных игроков. Сначала выбейте их или перенесите в другой стол.`);
+        return;
+    }
+
+    // Если есть только выбитые (имена есть, но все в eliminated) — тоже спросим
+    if (hasAnyPlayers) {
+        if (!confirm(`В столе ${removedIndex + 1} есть выбитые игроки. Удалить стол?`)) {
             return;
         }
-        // Добавляем всех в выбившие (с сохранением порядка)
-        activeNames.forEach(name => {
-            if (!appData.eliminated.some(e => e.name === name)) {
-                appData.eliminated.push({
-                    name,
-                    order: appData.eliminated.length + 1,
-                    tableNumber: removedIndex + 1
-                });
-            }
-        });
+    } else {
+        if (!confirm(`Удалить стол ${removedIndex + 1}?`)) return;
     }
 
     // Удаляем стол
@@ -166,7 +172,8 @@ function removeTable() {
     updateAlbumPosition();
     updateAllUI();
     saveData();
-    checkBalance();
+    // Баланс не проверяем — активных игроков в удаляемом столе не было,
+    // значит общее количество активных игроков в других столах не изменилось
 }
 
 function updateAddTableButton() {
@@ -271,7 +278,10 @@ function createSeatButton(ti, si) {
     // Клик
     btn.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete')) return;
-        if (dragState) return;
+        if (justDragged) {
+            justDragged = false;
+            return;
+        }
         handleSeatClick(ti, si);
     });
 
@@ -289,13 +299,14 @@ function createSeatButton(ti, si) {
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
 let dragState = null;
-let pressState = null;   // промежуточное состояние до начала drag
+let pressState = null;
 let autoScrollTimer = null;
+let justDragged = false;
 
-const MOVE_THRESHOLD_MOUSE = 6;    // порог для мыши (px)
-const MOVE_THRESHOLD_TOUCH = 10;   // порог для тача (px)
-const EDGE_ZONE = 60;              // ширина "горячей зоны" у края экрана (px)
-const AUTO_SCROLL_INTERVAL = 350;  // скорость автопрокрутки (мс)
+const MOVE_THRESHOLD_MOUSE = 6;
+const MOVE_THRESHOLD_TOUCH = 10;
+const EDGE_ZONE = 60;
+const AUTO_SCROLL_INTERVAL = 350;
 
 function attachDragHandlers(btn, ti, si, name, isElim) {
     if (!name || isElim) return;
@@ -315,8 +326,6 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
             isDragging: false
         };
 
-        // Захватываем указатель — это позволит получать все события
-        // вплоть до отпускания
         try { btn.setPointerCapture(e.pointerId); } catch (err) {}
     });
 
@@ -337,12 +346,9 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
             return;
         }
 
-        // Уже тащим
         e.preventDefault();
         positionGhost(e.clientX, e.clientY);
         highlightTargetUnder(e.clientX, e.clientY);
-
-        // Автопрокрутка альбома у краёв экрана (важно для телефона)
         handleEdgeAutoScroll(e.clientX);
     });
 
@@ -367,7 +373,6 @@ function beginDrag(e) {
 
     const { btn, ti, si, name } = pressState;
 
-    // Ghost
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
     ghost.textContent = name;
@@ -387,15 +392,12 @@ function beginDrag(e) {
 
     positionGhost(e.clientX, e.clientY);
 
-    // Все столы рядом — только для мыши.
-    // На телефоне показываем по одному и используем автопрокрутку.
     if (pressState.pointerType !== 'touch') {
         const viewport = document.querySelector('.album-viewport');
         const track = document.getElementById('albumTrack');
         if (viewport) viewport.classList.add('dragging-active');
         if (track) track.classList.add('dragging-active');
     } else {
-        // На тач-устройстве подсказываем пользователю про края
         document.body.classList.add('touch-drag-active');
     }
 
@@ -435,14 +437,12 @@ function highlightTargetUnder(x, y) {
     }
 }
 
-// Автопрокрутка альбома при поднесении к краям экрана
 function handleEdgeAutoScroll(clientX) {
     if (!dragState) return;
 
     const w = window.innerWidth;
 
     if (clientX < EDGE_ZONE) {
-        // левый край — листаем влево
         if (!autoScrollTimer) {
             autoScrollTimer = setInterval(() => {
                 if (currentTableIndex > 0) {
@@ -451,7 +451,6 @@ function handleEdgeAutoScroll(clientX) {
                     updateTableIndicator();
                 }
             }, AUTO_SCROLL_INTERVAL);
-            // сразу один шаг, чтобы не ждать
             if (currentTableIndex > 0) {
                 currentTableIndex--;
                 updateAlbumPosition();
@@ -459,7 +458,6 @@ function handleEdgeAutoScroll(clientX) {
             }
         }
     } else if (clientX > w - EDGE_ZONE) {
-        // правый край — листаем вправо
         if (!autoScrollTimer) {
             autoScrollTimer = setInterval(() => {
                 if (currentTableIndex < appData.tables.length - 1) {
@@ -475,7 +473,6 @@ function handleEdgeAutoScroll(clientX) {
             }
         }
     } else {
-        // вне зон — останавливаем
         if (autoScrollTimer) {
             clearInterval(autoScrollTimer);
             autoScrollTimer = null;
@@ -484,7 +481,6 @@ function handleEdgeAutoScroll(clientX) {
 }
 
 function finishDrag(e) {
-    // До drag не дошли — это клик, обрабатывается обычным way
     if (!pressState) return;
     if (!pressState.isDragging) {
         pressState = null;
@@ -498,12 +494,10 @@ function finishDrag(e) {
     const srcTi = dragState.ti;
     const srcSi = dragState.si;
 
-    // Снять захват
     if (srcEl) {
         try { srcEl.releasePointerCapture(pressState.pointerId); } catch (err) {}
     }
 
-    // Убрать подсветки
     document.querySelectorAll('.number-btn.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.table-card.drag-target').forEach(el => el.classList.remove('drag-target'));
     if (dragState.ghost && dragState.ghost.parentNode) {
@@ -511,7 +505,6 @@ function finishDrag(e) {
     }
     if (srcEl) srcEl.classList.remove('dragging');
 
-    // Вернуть альбом
     const viewport = document.querySelector('.album-viewport');
     const track = document.getElementById('albumTrack');
     if (viewport) viewport.classList.remove('dragging-active');
@@ -519,7 +512,6 @@ function finishDrag(e) {
     document.body.classList.remove('dragging-mode');
     document.body.classList.remove('touch-drag-active');
 
-    // Остановить автопрокрутку
     if (autoScrollTimer) {
         clearInterval(autoScrollTimer);
         autoScrollTimer = null;
@@ -535,6 +527,10 @@ function finishDrag(e) {
             performMove(srcTi, srcSi, targetTi, targetSi);
         }
     }
+
+    // Флаг «только что тащили» — чтобы клик не сработал случайно
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 300);
 }
 
 function performMove(srcTi, srcSi, targetTi, targetSi) {
@@ -561,6 +557,7 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     renderTables();
     updateAllUI();
     saveData();
+    // Баланс НЕ проверяем — перемещение не считается добавлением/удалением
 }
 
 // ===== КЛИК =====
@@ -581,11 +578,11 @@ function handleSeatClick(ti, si) {
     const isElim = appData.eliminated.some(e => e.name === name);
     if (isElim) return;
 
+    // Пополнение входа существующего игрока — баланс НЕ проверяем
     table.players[si]++;
     appData.total++;
     updateAllUI();
     saveData();
-    checkBalance();
 }
 
 function confirmPlayerName() {
@@ -598,6 +595,8 @@ function confirmPlayerName() {
         renderTables();
         updateAllUI();
         saveData();
+        // Новый игрок — проверяем дисбаланс
+        checkBalance();
     }
     closeNameModal();
 }
@@ -616,10 +615,9 @@ function eliminatePlayer(ti, si) {
     if (!confirm(`Выбить игрока "${name}"?`)) return;
 
     if (!appData.eliminated.some(e => e.name === name)) {
-        const order = appData.eliminated.length + 1;
         appData.eliminated.push({
             name,
-            order,
+            order: appData.eliminated.length + 1,
             tableNumber: ti + 1
         });
     }
@@ -627,6 +625,7 @@ function eliminatePlayer(ti, si) {
     renderTables();
     updateAllUI();
     saveData();
+    // Игрок выбит — проверяем дисбаланс
     checkBalance();
 }
 
@@ -639,6 +638,9 @@ function getActiveCounts() {
 
 function getImbalanceInfo() {
     const counts = getActiveCounts();
+    if (counts.length === 0) {
+        return { counts, diff: 0, imbalanced: false, overloadedTables: [] };
+    }
     const max = Math.max(...counts);
     const min = Math.min(...counts);
     const diff = max - min;
