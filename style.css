@@ -211,6 +211,16 @@ body {
     flex: 1 1 calc(50% - 5px);
 }
 
+/* Пульсация стрелок во время touch-drag */
+body.touch-drag-active .album-arrow {
+    animation: arrowPulse 1.2s infinite;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.35);
+}
+@keyframes arrowPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+}
+
 .table-card {
     background: #f8f9fa; border-radius: 12px; padding: 12px;
     border: 2px solid #dee2e6; transition: box-shadow 0.3s, border-color 0.3s, background 0.3s;
@@ -319,13 +329,6 @@ body {
     padding: 8px 12px;
     max-width: 130px;
     text-align: center;
-}
-body.dragging-mode {
-    overflow: hidden;
-    touch-action: none;
-}
-body.dragging-mode .number-btn {
-    touch-action: none;
 }
 
 .table-summary {
@@ -576,7 +579,6 @@ body.dragging-mode .number-btn {
     .left-panel { padding: 12px; border-radius: 16px; }
     .right-panel { gap: 8px; }
 
-    /* Таймер — сжимается */
     .timer-wrapper {
         width: 220px;
         height: 220px;
