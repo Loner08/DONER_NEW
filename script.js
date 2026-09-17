@@ -116,14 +116,12 @@ function saveData() {
 function addTable() {
     if (appData.tables.length >= MAX_TABLES) return;
     appData.tables.push(emptyTable());
+    currentTableIndex = appData.tables.length - 1;
     renderTables();
     updateAddTableButton();
     updateTableIndicator();
-    saveData();
-    // Переключаемся на новый стол
-    currentTableIndex = appData.tables.length - 1;
     updateAlbumPosition();
-    updateTableIndicator();
+    saveData();
 }
 
 function updateAddTableButton() {
@@ -209,20 +207,17 @@ function createSeatButton(ti, si) {
         <div class="btn-count">${count}</div>
     `;
 
-    if (name && !isElim) {
-        btn.draggable = true;
-        btn.addEventListener('dragstart', onDragStart);
-        btn.addEventListener('dragend', onDragEnd);
-    }
-    btn.addEventListener('dragover', onDragOver);
-    btn.addEventListener('dragleave', onDragLeave);
-    btn.addEventListener('drop', onDrop);
+    // Перетаскивание
+    attachDragHandlers(btn, ti, si, name, isElim);
 
+    // Клик
     btn.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete')) return;
+        if (dragState) return;
         handleSeatClick(ti, si);
     });
 
+    // Крестик
     const del = btn.querySelector('.btn-delete');
     if (del) {
         del.addEventListener('click', (e) => {
@@ -232,6 +227,193 @@ function createSeatButton(ti, si) {
     }
 
     return btn;
+}
+
+// ===== ПЕРЕТАСКИВАНИЕ (pointer events — работает и мышью, и пальцем) =====
+let dragState = null;
+let longPressTimer = null;
+
+function attachDragHandlers(btn, ti, si, name, isElim) {
+    if (!name || isElim) return;
+
+    btn.style.cursor = 'grab';
+
+    btn.addEventListener('pointerdown', (e) => {
+        if (e.target.classList.contains('btn-delete')) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        const isTouch = e.pointerType === 'touch';
+        const delay = isTouch ? 220 : 0;
+
+        longPressTimer = setTimeout(() => {
+            startDrag(e, btn, ti, si, name);
+        }, delay);
+    });
+
+    btn.addEventListener('pointermove', (e) => {
+        if (dragState) {
+            moveDrag(e);
+            return;
+        }
+        // Если палец/мышь сдвинулись до срабатывания таймера — отменяем
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    });
+
+    btn.addEventListener('pointerup', () => {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    });
+
+    btn.addEventListener('pointercancel', () => {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    });
+
+    btn.addEventListener('contextmenu', (e) => {
+        if (dragState) e.preventDefault();
+    });
+}
+
+function startDrag(e, btn, ti, si, name) {
+    longPressTimer = null;
+
+    const ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+    ghost.textContent = name;
+    document.body.appendChild(ghost);
+
+    const rect = btn.getBoundingClientRect();
+    const startX = e.clientX || (rect.left + rect.width / 2);
+    const startY = e.clientY || (rect.top + rect.height / 2);
+
+    dragState = {
+        ti, si,
+        ghost,
+        sourceEl: btn,
+        targetEl: null
+    };
+
+    btn.classList.add('dragging');
+    positionGhost(startX, startY);
+
+    document.addEventListener('pointermove', globalPointerMove, { passive: false });
+    document.addEventListener('pointerup', globalPointerUp);
+    document.addEventListener('pointercancel', globalPointerUp);
+
+    const viewport = document.querySelector('.album-viewport');
+    const track = document.getElementById('albumTrack');
+    if (viewport) viewport.classList.add('dragging-active');
+    if (track) track.classList.add('dragging-active');
+
+    if (navigator.vibrate) navigator.vibrate(20);
+
+    e.preventDefault();
+}
+
+function moveDrag(e) {
+    if (!dragState) return;
+    positionGhost(e.clientX, e.clientY);
+}
+
+function positionGhost(x, y) {
+    if (!dragState) return;
+    dragState.ghost.style.left = x + 'px';
+    dragState.ghost.style.top = y + 'px';
+}
+
+function globalPointerMove(e) {
+    if (!dragState) return;
+    e.preventDefault();
+
+    positionGhost(e.clientX, e.clientY);
+
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const targetBtn = el ? el.closest('.number-btn') : null;
+
+    if (dragState.targetEl && dragState.targetEl !== targetBtn) {
+        dragState.targetEl.classList.remove('drag-over');
+        const oldCard = dragState.targetEl.closest('.table-card');
+        if (oldCard) oldCard.classList.remove('drag-target');
+    }
+
+    if (targetBtn && targetBtn !== dragState.sourceEl) {
+        targetBtn.classList.add('drag-over');
+        dragState.targetEl = targetBtn;
+        const card = targetBtn.closest('.table-card');
+        if (card) card.classList.add('drag-target');
+    } else {
+        dragState.targetEl = null;
+    }
+}
+
+function globalPointerUp(e) {
+    document.removeEventListener('pointermove', globalPointerMove);
+    document.removeEventListener('pointerup', globalPointerUp);
+    document.removeEventListener('pointercancel', globalPointerUp);
+
+    if (!dragState) return;
+
+    const targetBtn = dragState.targetEl;
+
+    document.querySelectorAll('.number-btn.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.table-card.drag-target').forEach(el => el.classList.remove('drag-target'));
+
+    if (dragState.ghost && dragState.ghost.parentNode) {
+        dragState.ghost.parentNode.removeChild(dragState.ghost);
+    }
+    if (dragState.sourceEl) dragState.sourceEl.classList.remove('dragging');
+
+    const viewport = document.querySelector('.album-viewport');
+    const track = document.getElementById('albumTrack');
+    if (viewport) viewport.classList.remove('dragging-active');
+    if (track) track.classList.remove('dragging-active');
+
+    if (targetBtn) {
+        const targetTi = +targetBtn.dataset.table;
+        const targetSi = +targetBtn.dataset.seat;
+        const { ti: srcTi, si: srcSi } = dragState;
+
+        if (!(srcTi === targetTi && srcSi === targetSi)) {
+            performMove(srcTi, srcSi, targetTi, targetSi);
+        }
+    }
+
+    // Сбрасываем через небольшую задержку, чтобы клик не сработал
+    setTimeout(() => { dragState = null; }, 50);
+}
+
+function performMove(srcTi, srcSi, targetTi, targetSi) {
+    const srcTable = appData.tables[srcTi];
+    const tgtTable = appData.tables[targetTi];
+
+    const srcName = srcTable.names[srcSi];
+    const srcCount = srcTable.players[srcSi];
+    const tgtName = tgtTable.names[targetSi];
+    const tgtCount = tgtTable.players[targetSi];
+
+    if (tgtName) {
+        srcTable.names[srcSi] = tgtName;
+        srcTable.players[srcSi] = tgtCount;
+        tgtTable.names[targetSi] = srcName;
+        tgtTable.players[targetSi] = srcCount;
+    } else {
+        tgtTable.names[targetSi] = srcName;
+        tgtTable.players[targetSi] = srcCount;
+        srcTable.names[srcSi] = '';
+        srcTable.players[srcSi] = 0;
+    }
+
+    renderTables();
+    updateAllUI();
+    saveData();
+    checkBalance();
 }
 
 // ===== КЛИК =====
@@ -302,101 +484,7 @@ function eliminatePlayer(ti, si) {
     checkBalance();
 }
 
-// ===== DRAG & DROP =====
-let dragSource = null;
-
-function onDragStart(e) {
-    const btn = e.currentTarget;
-    const ti = +btn.dataset.table;
-    const si = +btn.dataset.seat;
-    const name = appData.tables[ti].names[si];
-    if (!name || appData.eliminated.some(x => x.name === name)) {
-        e.preventDefault();
-        return;
-    }
-    dragSource = { ti, si };
-    btn.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', `${ti}-${si}`);
-
-    const viewport = document.querySelector('.album-viewport');
-    const track = document.getElementById('albumTrack');
-    if (viewport) viewport.classList.add('dragging-active');
-    if (track) track.classList.add('dragging-active');
-}
-
-function onDragEnd(e) {
-    e.currentTarget.classList.remove('dragging');
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-    document.querySelectorAll('.table-card.drag-target').forEach(el => el.classList.remove('drag-target'));
-
-    const viewport = document.querySelector('.album-viewport');
-    const track = document.getElementById('albumTrack');
-    if (viewport) viewport.classList.remove('dragging-active');
-    if (track) track.classList.remove('dragging-active');
-
-    dragSource = null;
-}
-
-function onDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    e.currentTarget.classList.add('drag-over');
-
-    const card = e.currentTarget.closest('.table-card');
-    if (card) card.classList.add('drag-target');
-}
-
-function onDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
-    const card = e.currentTarget.closest('.table-card');
-    if (card && !card.contains(e.relatedTarget)) {
-        card.classList.remove('drag-target');
-    }
-}
-
-function onDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const target = e.currentTarget;
-    target.classList.remove('drag-over');
-    const card = target.closest('.table-card');
-    if (card) card.classList.remove('drag-target');
-
-    if (!dragSource) return;
-
-    const targetTi = +target.dataset.table;
-    const targetSi = +target.dataset.seat;
-    if (dragSource.ti === targetTi && dragSource.si === targetSi) return;
-
-    const srcTable = appData.tables[dragSource.ti];
-    const tgtTable = appData.tables[targetTi];
-    const srcName = srcTable.names[dragSource.si];
-    const srcCount = srcTable.players[dragSource.si];
-    const tgtName = tgtTable.names[targetSi];
-    const tgtCount = tgtTable.players[targetSi];
-
-    if (tgtName) {
-        srcTable.names[dragSource.si] = tgtName;
-        srcTable.players[dragSource.si] = tgtCount;
-        tgtTable.names[targetSi] = srcName;
-        tgtTable.players[targetSi] = srcCount;
-    } else {
-        tgtTable.names[targetSi] = srcName;
-        tgtTable.players[targetSi] = srcCount;
-        srcTable.names[dragSource.si] = '';
-        srcTable.players[dragSource.si] = 0;
-    }
-
-    dragSource = null;
-    renderTables();
-    updateAllUI();
-    saveData();
-    checkBalance();
-}
-
 // ===== ДИСБАЛАНС =====
-// Считаем активных (не выбитых) игроков по всем столам
 function getActiveCounts() {
     return appData.tables.map(t =>
         t.names.filter(n => n && !appData.eliminated.some(e => e.name === n)).length
@@ -410,7 +498,6 @@ function getImbalanceInfo() {
     const diff = max - min;
     const imbalanced = diff >= 2;
 
-    // Все столы с максимальным количеством — перегружены
     const overloadedTables = [];
     if (imbalanced) {
         counts.forEach((c, i) => {
@@ -429,7 +516,6 @@ function checkBalance(silent = false) {
     if (info.imbalanced) {
         stopTimer();
 
-        // Текст со всеми столами
         const parts = info.counts.map((c, i) => `Стол ${i + 1}: ${c}`).join(', ');
         document.getElementById('balanceText').textContent =
             `${parts}. Разница ${info.diff}.`;

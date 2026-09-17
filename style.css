@@ -45,21 +45,34 @@ body {
     min-width: 0;
 }
 
-/* ТАЙМЕР — УВЕЛИЧЕН */
+/* ТАЙМЕР */
 .timer-section { text-align: center; }
 .timer-center { display: inline-block; max-width: 100%; }
-.timer-wrapper { position: relative; display: inline-block; max-width: 100%; }
-
-.progress-ring { transform: rotate(-90deg); width: 300px; height: 300px; max-width: 100%; height: auto; }
+.timer-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 300px;
+    height: 300px;
+    max-width: 100%;
+}
+.timer-wrapper svg.progress-ring {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: rotate(-90deg);
+}
 .progress-ring-circle {
     fill: none; stroke: #2ecc71; stroke-width: 9;
-    stroke-linecap: round; transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
 }
 .progress-ring-bg { fill: none; stroke: #ecf0f1; stroke-width: 9; }
 
 .timer-content {
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%); text-align: center;
+    pointer-events: none;
+    width: 80%;
 }
 .timer-label { font-size: 13px; color: #7f8c8d; letter-spacing: 4px; font-weight: 600; }
 .level-display {
@@ -228,6 +241,10 @@ body {
     padding: 10px 6px; cursor: pointer; transition: all 0.2s;
     min-height: 64px; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 .number-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3); }
 .number-btn .btn-number { font-size: 15px; font-weight: bold; color: #2c3e50; }
@@ -269,7 +286,12 @@ body {
 }
 .btn-delete:hover { background: rgba(231, 76, 60, 0.15); }
 
-.number-btn.dragging { opacity: 0.35; transform: scale(0.95); }
+/* DRAG состояния */
+.number-btn.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+    z-index: 10;
+}
 .number-btn.drag-over {
     border-color: #f39c12 !important;
     box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.5);
@@ -277,6 +299,27 @@ body {
 }
 .number-btn[draggable="true"] { cursor: grab; }
 .number-btn[draggable="true"]:active { cursor: grabbing; }
+
+/* "Призрак" карточки, летящий за пальцем */
+.drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(0.9);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #fff;
+    background: #3498db;
+    font-size: 13px;
+    padding: 8px 12px;
+    max-width: 130px;
+    text-align: center;
+}
 
 .table-summary {
     background: white; padding: 8px; border-radius: 8px;
@@ -521,16 +564,21 @@ body {
 
 /* ТЕЛЕФОН */
 @media (max-width: 600px) {
-    body { padding: 10px; }
+    body { padding: 8px; }
 
-    .left-panel { padding: 14px; border-radius: 16px; }
+    .left-panel { padding: 12px; border-radius: 16px; }
     .right-panel { gap: 8px; }
 
-    /* Таймер — уменьшаем, чтобы влезал */
-    .progress-ring { width: 200px !important; height: 200px !important; }
-    .timer-display { font-size: 36px; }
-    .timer-label { font-size: 11px; letter-spacing: 3px; }
-    .level-display { font-size: 14px; padding: 3px 12px; }
+    /* Таймер — сжимается */
+    .timer-wrapper {
+        width: 220px;
+        height: 220px;
+    }
+    .timer-display { font-size: 34px; }
+    .timer-label { font-size: 10px; letter-spacing: 3px; }
+    .level-display { font-size: 13px; padding: 2px 10px; margin: 2px 0; }
+    .progress-ring-circle,
+    .progress-ring-bg { stroke-width: 7; }
 
     .timer-controls { gap: 8px; margin-top: 10px; }
     .timer-btn { width: 42px; height: 42px; font-size: 14px; }
@@ -544,7 +592,6 @@ body {
 
     .structure-list { max-height: 140px; }
 
-    /* Сетка 3×3 на телефоне — компактнее */
     .buttons-grid { gap: 5px; }
     .number-btn { min-height: 56px; padding: 6px 4px; }
     .number-btn .btn-number { font-size: 13px; }
@@ -563,4 +610,13 @@ body {
     .imbalance-overlay-content { padding: 28px 22px; }
     .imbalance-overlay-content h2 { font-size: 22px; }
     .imbalance-icon { font-size: 48px; }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 380px) {
+    .timer-wrapper { width: 180px; height: 180px; }
+    .timer-display { font-size: 28px; }
+    .blind-value { font-size: 22px; }
+    .blind-label { font-size: 16px; }
+    .blind-display { padding: 8px 12px; gap: 8px; }
 }
