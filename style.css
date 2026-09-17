@@ -241,7 +241,7 @@ body {
     padding: 10px 6px; cursor: pointer; transition: all 0.2s;
     min-height: 64px; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    touch-action: none;
+    touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
@@ -319,6 +319,13 @@ body {
     padding: 8px 12px;
     max-width: 130px;
     text-align: center;
+}
+body.dragging-mode {
+    overflow: hidden;
+    touch-action: none;
+}
+body.dragging-mode .number-btn {
+    touch-action: none;
 }
 
 .table-summary {

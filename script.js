@@ -229,9 +229,14 @@ function createSeatButton(ti, si) {
     return btn;
 }
 
-// ===== ПЕРЕТАСКИВАНИЕ (pointer events — работает и мышью, и пальцем) =====
+// ===== ПЕРЕТАСКИВАНИЕ (pointer events + setPointerCapture) =====
 let dragState = null;
 let longPressTimer = null;
+let startX = 0, startY = 0;
+let pointerStartId = null;
+
+const TOUCH_HOLD_MS = 180;      // долгое нажатие на тач-устройстве
+const MOVE_THRESHOLD = 12;      // порог смещения до старта drag (px)
 
 function attachDragHandlers(btn, ti, si, name, isElim) {
     if (!name || isElim) return;
@@ -242,34 +247,68 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
         if (e.target.classList.contains('btn-delete')) return;
         if (e.pointerType === 'mouse' && e.button !== 0) return;
 
-        const isTouch = e.pointerType === 'touch';
-        const delay = isTouch ? 220 : 0;
+        startX = e.clientX;
+        startY = e.clientY;
+        pointerStartId = e.pointerId;
 
-        longPressTimer = setTimeout(() => {
-            startDrag(e, btn, ti, si, name);
-        }, delay);
+        const isTouch = e.pointerType === 'touch';
+
+        if (isTouch) {
+            // На тач-устройстве — долгое нажатие
+            longPressTimer = setTimeout(() => {
+                longPressTimer = null;
+                beginDrag(e, btn, ti, si, name);
+            }, TOUCH_HOLD_MS);
+        } else {
+            // На мыши — сразу готовы начать drag при первом движении
+            longPressTimer = setTimeout(() => {
+                longPressTimer = null;
+                beginDrag(e, btn, ti, si, name);
+            }, 0);
+        }
     });
 
     btn.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointerStartId) return;
+
+        // Если ghost ещё не создан — проверяем порог
+        if (!dragState) {
+            const dx = Math.abs(e.clientX - startX);
+            const dy = Math.abs(e.clientY - startY);
+
+            if (longPressTimer) {
+                // Ещё ждём долгого нажатия — если палец ушёл больше порога, это скролл
+                if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                return;
+            }
+
+            // Таймер уже отработал, но drag ещё не начат — начинаем
+            // (например, на мыши: сработал setTimeout с задержкой 0)
+            if (!dragState && (dx > 2 || dy > 2)) {
+                beginDrag(e, btn, ti, si, name);
+            }
+        }
+
         if (dragState) {
-            moveDrag(e);
-            return;
+            e.preventDefault();
+            positionGhost(e.clientX, e.clientY);
+            highlightTargetUnder(e.clientX, e.clientY);
         }
-        // Если палец/мышь сдвинулись до срабатывания таймера — отменяем
+    });
+
+    btn.addEventListener('pointerup', (e) => {
+        if (e.pointerId !== pointerStartId) return;
         if (longPressTimer) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
         }
     });
 
-    btn.addEventListener('pointerup', () => {
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-    });
-
-    btn.addEventListener('pointercancel', () => {
+    btn.addEventListener('pointercancel', (e) => {
+        if (e.pointerId !== pointerStartId) return;
         if (longPressTimer) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -281,45 +320,45 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
     });
 }
 
-function startDrag(e, btn, ti, si, name) {
+function beginDrag(e, btn, ti, si, name) {
     longPressTimer = null;
 
+    // Призрак
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
     ghost.textContent = name;
     document.body.appendChild(ghost);
 
-    const rect = btn.getBoundingClientRect();
-    const startX = e.clientX || (rect.left + rect.width / 2);
-    const startY = e.clientY || (rect.top + rect.height / 2);
-
     dragState = {
         ti, si,
         ghost,
         sourceEl: btn,
-        targetEl: null
+        targetEl: null,
+        pointerId: e.pointerId
     };
 
     btn.classList.add('dragging');
-    positionGhost(startX, startY);
+    document.body.classList.add('dragging-mode');
 
+    // Захватываем указатель на кнопке — все pointermove/up придут туда
+    try {
+        btn.setPointerCapture(e.pointerId);
+    } catch (err) {}
+
+    positionGhost(e.clientX, e.clientY);
+
+    // Глобальные слушатели на случай, если pointer вырвется за пределы кнопки
     document.addEventListener('pointermove', globalPointerMove, { passive: false });
     document.addEventListener('pointerup', globalPointerUp);
     document.addEventListener('pointercancel', globalPointerUp);
 
+    // Показываем все столы рядом
     const viewport = document.querySelector('.album-viewport');
     const track = document.getElementById('albumTrack');
     if (viewport) viewport.classList.add('dragging-active');
     if (track) track.classList.add('dragging-active');
 
-    if (navigator.vibrate) navigator.vibrate(20);
-
-    e.preventDefault();
-}
-
-function moveDrag(e) {
-    if (!dragState) return;
-    positionGhost(e.clientX, e.clientY);
+    if (navigator.vibrate) navigator.vibrate(15);
 }
 
 function positionGhost(x, y) {
@@ -328,14 +367,17 @@ function positionGhost(x, y) {
     dragState.ghost.style.top = y + 'px';
 }
 
-function globalPointerMove(e) {
+function highlightTargetUnder(x, y) {
     if (!dragState) return;
-    e.preventDefault();
+    // Прячем призрак, чтобы elementFromPoint не нашёл его самого
+    const ghost = dragState.ghost;
+    const prevDisplay = ghost.style.display;
+    ghost.style.display = 'none';
 
-    positionGhost(e.clientX, e.clientY);
-
-    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const el = document.elementFromPoint(x, y);
     const targetBtn = el ? el.closest('.number-btn') : null;
+
+    ghost.style.display = prevDisplay;
 
     if (dragState.targetEl && dragState.targetEl !== targetBtn) {
         dragState.targetEl.classList.remove('drag-over');
@@ -353,40 +395,56 @@ function globalPointerMove(e) {
     }
 }
 
+function globalPointerMove(e) {
+    if (!dragState) return;
+    if (dragState.pointerId !== undefined && e.pointerId !== dragState.pointerId) return;
+    e.preventDefault();
+    positionGhost(e.clientX, e.clientY);
+    highlightTargetUnder(e.clientX, e.clientY);
+}
+
 function globalPointerUp(e) {
+    if (!dragState) return;
+    if (dragState.pointerId !== undefined && e.pointerId !== dragState.pointerId) return;
+
     document.removeEventListener('pointermove', globalPointerMove);
     document.removeEventListener('pointerup', globalPointerUp);
     document.removeEventListener('pointercancel', globalPointerUp);
 
-    if (!dragState) return;
+    // Снимаем захват
+    if (dragState.sourceEl) {
+        try { dragState.sourceEl.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
 
     const targetBtn = dragState.targetEl;
+    const srcEl = dragState.sourceEl;
 
+    // Убираем подсветку и ghost
     document.querySelectorAll('.number-btn.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.table-card.drag-target').forEach(el => el.classList.remove('drag-target'));
-
     if (dragState.ghost && dragState.ghost.parentNode) {
         dragState.ghost.parentNode.removeChild(dragState.ghost);
     }
-    if (dragState.sourceEl) dragState.sourceEl.classList.remove('dragging');
+    if (srcEl) srcEl.classList.remove('dragging');
 
+    // Возвращаем альбом
     const viewport = document.querySelector('.album-viewport');
     const track = document.getElementById('albumTrack');
     if (viewport) viewport.classList.remove('dragging-active');
     if (track) track.classList.remove('dragging-active');
+    document.body.classList.remove('dragging-mode');
+
+    const srcTi = dragState.ti;
+    const srcSi = dragState.si;
+    dragState = null;
 
     if (targetBtn) {
         const targetTi = +targetBtn.dataset.table;
         const targetSi = +targetBtn.dataset.seat;
-        const { ti: srcTi, si: srcSi } = dragState;
-
         if (!(srcTi === targetTi && srcSi === targetSi)) {
             performMove(srcTi, srcSi, targetTi, targetSi);
         }
     }
-
-    // Сбрасываем через небольшую задержку, чтобы клик не сработал
-    setTimeout(() => { dragState = null; }, 50);
 }
 
 function performMove(srcTi, srcSi, targetTi, targetSi) {
@@ -399,11 +457,13 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     const tgtCount = tgtTable.players[targetSi];
 
     if (tgtName) {
+        // Обмен
         srcTable.names[srcSi] = tgtName;
         srcTable.players[srcSi] = tgtCount;
         tgtTable.names[targetSi] = srcName;
         tgtTable.players[targetSi] = srcCount;
     } else {
+        // Перенос
         tgtTable.names[targetSi] = srcName;
         tgtTable.players[targetSi] = srcCount;
         srcTable.names[srcSi] = '';
@@ -413,6 +473,9 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     renderTables();
     updateAllUI();
     saveData();
+
+    // Пересчитываем дисбаланс, но НЕ блокируем перемещение — просто предупреждаем,
+    // если после перемещения стало плохо
     checkBalance();
 }
 
