@@ -1,6 +1,8 @@
 // ===== ДАННЫЕ =====
 const SEATS_PER_TABLE = 9;
-const MAX_TABLES = 4;
+const MAX_TABLES = 3;
+const MIN_TABLES = 1;
+
 
 function emptyTable() {
     return {
@@ -123,16 +125,72 @@ function addTable() {
     updateAlbumPosition();
     saveData();
 }
+function removeTable() {
+    if (appData.tables.length <= MIN_TABLES) return;
+
+    const removedIndex = currentTableIndex;
+    const table = appData.tables[removedIndex];
+
+    // Проверяем, есть ли в столе активные игроки
+    const activeNames = table.names.filter((n, i) =>
+        n && !appData.eliminated.some(e => e.name === n)
+    );
+
+    if (activeNames.length > 0) {
+        if (!confirm(`В столе ${removedIndex + 1} есть ${activeNames.length} активных игроков. Удалить стол вместе с ними?`)) {
+            return;
+        }
+        // Добавляем всех в выбившие (с сохранением порядка)
+        activeNames.forEach(name => {
+            if (!appData.eliminated.some(e => e.name === name)) {
+                appData.eliminated.push({
+                    name,
+                    order: appData.eliminated.length + 1,
+                    tableNumber: removedIndex + 1
+                });
+            }
+        });
+    }
+
+    // Удаляем стол
+    appData.tables.splice(removedIndex, 1);
+
+    // Корректируем индекс текущего стола
+    if (currentTableIndex >= appData.tables.length) {
+        currentTableIndex = appData.tables.length - 1;
+    }
+
+    renderTables();
+    updateAddTableButton();
+    updateTableIndicator();
+    updateAlbumPosition();
+    updateAllUI();
+    saveData();
+    checkBalance();
+}
 
 function updateAddTableButton() {
-    const btn = document.getElementById('addTableBtn');
-    if (!btn) return;
-    if (appData.tables.length >= MAX_TABLES) {
-        btn.disabled = true;
-        btn.style.display = 'none';
-    } else {
-        btn.disabled = false;
-        btn.style.display = 'flex';
+    const addBtn = document.getElementById('addTableBtn');
+    const remBtn = document.getElementById('removeTableBtn');
+
+    if (addBtn) {
+        if (appData.tables.length >= MAX_TABLES) {
+            addBtn.disabled = true;
+            addBtn.style.display = 'none';
+        } else {
+            addBtn.disabled = false;
+            addBtn.style.display = 'flex';
+        }
+    }
+
+    if (remBtn) {
+        if (appData.tables.length <= MIN_TABLES) {
+            remBtn.disabled = true;
+            remBtn.style.display = 'none';
+        } else {
+            remBtn.disabled = false;
+            remBtn.style.display = 'flex';
+        }
     }
 }
 
@@ -503,7 +561,6 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     renderTables();
     updateAllUI();
     saveData();
-    checkBalance();
 }
 
 // ===== КЛИК =====
@@ -541,7 +598,6 @@ function confirmPlayerName() {
         renderTables();
         updateAllUI();
         saveData();
-        checkBalance();
     }
     closeNameModal();
 }

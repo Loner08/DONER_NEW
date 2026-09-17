@@ -194,6 +194,9 @@ body {
 }
 .album-arrow:hover { background: #2980b9; transform: scale(1.08); }
 .album-add { background: #2ecc71; }
+.album-remove { background: #e74c3c; }
+.album-remove:hover { background: #c0392b; }
+.album-remove:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
 .album-add:hover { background: #27ae60; }
 .album-add:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
 .album-viewport { overflow: hidden; flex: 1; min-width: 0; }
