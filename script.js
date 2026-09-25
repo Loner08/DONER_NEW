@@ -1,7 +1,5 @@
 // ===== ДАННЫЕ =====
 const SEATS_PER_TABLE = 9;
-const MAX_TABLES = 3;
-const MIN_TABLES = 1;
 
 function emptyTable() {
     return {
@@ -16,11 +14,12 @@ let appData = {
     eliminated: []
 };
 
-let currentMultiplier = 150;
+let currentMultiplier = 500;
 let currentOption = 2;
 let deductTenPercent = false;
 let currentTableIndex = 0;
 let pendingSeat = null;
+let gameMode = null;
 
 let timer = {
     totalSeconds: 10 * 60,
@@ -32,6 +31,7 @@ let timer = {
 let level = 1;
 let mbScore = 100;
 let bbScore = 200;
+let anteScore = 0;
 
 let menuExpanded = { prize: true, auto: false, dist: false };
 
@@ -43,14 +43,41 @@ const blindSequence = [
     25000, 30000, 35000, 40000
 ];
 
+// Конфигурация режимов
+const GAME_MODES = {
+    'tournament':      { label: 'Турнир',         ante: false, levels: true,  mb: 100, bb: 200 },
+    'tournament-ante': { label: 'Турнир с анте',  ante: true,  levels: true,  mb: 100, bb: 200 },
+    'cash':            { label: 'Кэш',            ante: false, levels: false, mb: 5,   bb: 10  }
+};
+
+const GAME_MODE_NAMES = {
+    'tournament': 'Турнир',
+    'tournament-ante': 'Турнир с анте',
+    'cash': 'Кэш'
+};
+
+// Длительность уровня: 1–8 — 10 мин, с 9 — 7 мин
+function getLevelDuration(levelNumber) {
+    return levelNumber <= 8 ? 10 * 60 : 7 * 60;
+}
+
 // ===== СТАРТ =====
 window.onload = function() {
     loadData();
     renderTables();
-    updateAllUI();
     initializeMenuSections();
-    updateAddTableButton();
+    updateAddRemoveButtons();
     checkBalance(true);
+
+    if (!gameMode) {
+        // Нет сохранённого режима — показываем меню выбора
+        document.getElementById('gameModeOverlay').classList.add('active');
+        updateAllUI();
+    } else {
+        // Восстанавливаем всё из localStorage, НЕ сбрасываем таймер
+        updateModeSwitchLabel();
+        updateAllUI();
+    }
 };
 
 function loadData() {
@@ -61,7 +88,6 @@ function loadData() {
             if (d.appData) {
                 appData = d.appData;
 
-                // Миграция: если в столах не 9 мест — дополняем/обрезаем
                 appData.tables = (appData.tables || []).map(t => {
                     const players = (t.players || []).slice(0, SEATS_PER_TABLE);
                     const names = (t.names || []).slice(0, SEATS_PER_TABLE);
@@ -70,11 +96,8 @@ function loadData() {
                     return { players, names };
                 });
 
-                if (appData.tables.length < MIN_TABLES) {
+                if (appData.tables.length < 1) {
                     appData.tables.push(emptyTable());
-                }
-                if (appData.tables.length > MAX_TABLES) {
-                    appData.tables = appData.tables.slice(0, MAX_TABLES);
                 }
 
                 appData.eliminated = (appData.eliminated || []).map(e => {
@@ -85,19 +108,27 @@ function loadData() {
                         tableNumber: e.tableNumber || 0
                     };
                 });
-                appData.eliminated.forEach((e, i) => { e.order = i + 1; });
             }
+
+            // Восстанавливаем таймер как был
             if (d.timer) {
                 timer.totalSeconds = d.timer.totalSeconds ?? 600;
                 timer.maxSeconds = d.timer.maxSeconds ?? 600;
             }
+            timer.running = false;
+            timer.interval = null;
+
+            // Восстанавливаем уровень, блайнды, анте
             level = d.level || 1;
             mbScore = d.mbScore || 100;
             bbScore = d.bbScore || 200;
-            currentMultiplier = d.currentMultiplier || 150;
+            anteScore = d.anteScore || 0;
+
+            currentMultiplier = d.currentMultiplier || 500;
             currentOption = d.currentOption || 2;
             deductTenPercent = d.deductTenPercent || false;
             menuExpanded = d.menuExpanded || menuExpanded;
+            gameMode = d.gameMode || null;
 
             const cb = document.getElementById('deductTenPercent');
             if (cb) cb.checked = deductTenPercent;
@@ -109,99 +140,146 @@ function saveData() {
     try {
         localStorage.setItem('pokerTimerData', JSON.stringify({
             appData,
-            timer: { totalSeconds: timer.totalSeconds, maxSeconds: timer.maxSeconds },
-            level, mbScore, bbScore,
-            currentMultiplier, currentOption, deductTenPercent, menuExpanded
+            timer: {
+                totalSeconds: timer.totalSeconds,
+                maxSeconds: timer.maxSeconds
+            },
+            level, mbScore, bbScore, anteScore,
+            currentMultiplier, currentOption, deductTenPercent, menuExpanded,
+            gameMode
         }));
     } catch(e) {}
 }
 
-// ===== ДОБАВИТЬ / УДАЛИТЬ СТОЛ =====
+// ===== РЕЖИМ ИГРЫ =====
+function selectGameMode(mode) {
+    gameMode = mode;
+    document.getElementById('gameModeOverlay').classList.remove('active');
+    updateModeSwitchLabel();
+    applyGameMode();
+    updateAllUI();
+    saveData();
+}
+
+function openGameModeSelector() {
+    document.querySelectorAll('.gamemode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === gameMode);
+    });
+    document.getElementById('gameModeOverlay').classList.add('active');
+}
+
+function updateModeSwitchLabel() {
+    const el = document.getElementById('modeSwitchLabel');
+    if (el) el.textContent = GAME_MODE_NAMES[gameMode] || 'Игра';
+}
+
+// Вызывается ТОЛЬКО при смене режима и при сбросе ВСЁ
+function applyGameMode() {
+    if (!gameMode) return;
+    const cfg = GAME_MODES[gameMode];
+    if (!cfg) return;
+
+    if (!cfg.levels) {
+        // Кэш: фиксированные блайнды, никаких уровней
+        mbScore = cfg.mb;
+        bbScore = cfg.bb;
+        anteScore = 0;
+        level = 1;
+        timer.totalSeconds = getLevelDuration(1);
+        timer.maxSeconds = timer.totalSeconds;
+    } else {
+        // Турнир / турнир-анте: стартуем с 1 уровня
+        level = 1;
+        mbScore = blindSequence[0];
+        bbScore = mbScore * 2;
+        timer.totalSeconds = getLevelDuration(1);
+        timer.maxSeconds = timer.totalSeconds;
+        anteScore = 0;
+    }
+
+    updateAnteDisplay();
+    updateLevelDisplay();
+    updateNextLevelOnly();
+    updateTimerDisplay();
+    updateProgressBar();
+}
+
+function updateAnteDisplay() {
+    const anteBox = document.getElementById('anteBox');
+    const anteScoreEl = document.getElementById('anteScore');
+    if (!anteBox || !anteScoreEl) return;
+
+    const cfg = GAME_MODES[gameMode];
+    if (!cfg) {
+        anteBox.style.display = 'none';
+        return;
+    }
+
+    if (cfg.ante && cfg.levels && level >= 9) {
+        anteBox.style.display = 'flex';
+        anteScoreEl.textContent = bbScore * 2;
+        anteScore = bbScore * 2;
+    } else {
+        anteBox.style.display = 'none';
+        anteScore = 0;
+    }
+}
+
+// ===== СТОЛЫ =====
 function addTable() {
-    if (appData.tables.length >= MAX_TABLES) return;
     appData.tables.push(emptyTable());
     currentTableIndex = appData.tables.length - 1;
     renderTables();
-    updateAddTableButton();
+    updateAddRemoveButtons();
     updateTableIndicator();
     updateAlbumPosition();
     saveData();
-    // Новый стол пустой — дисбаланс не проверяем
 }
 
 function removeTable() {
-    if (appData.tables.length <= MIN_TABLES) return;
+    if (appData.tables.length <= 1) return;
 
     const removedIndex = currentTableIndex;
     const table = appData.tables[removedIndex];
 
-    // Есть ли в столе игроки с именем (включая выбитых)
-    const hasAnyPlayers = table.names.some(n => n);
-
-    // Активные игроки (не выбитые)
     const activeNames = table.names.filter(n =>
         n && !appData.eliminated.some(e => e.name === n)
     );
 
-    // Блокировка: если есть хотя бы один активный игрок — не удаляем
     if (activeNames.length > 0) {
         alert(`Нельзя удалить стол: в нём ${activeNames.length} активных игроков. Сначала выбейте их или перенесите в другой стол.`);
         return;
     }
 
-    // Если есть только выбитые (имена есть, но все в eliminated) — тоже спросим
-    if (hasAnyPlayers) {
-        if (!confirm(`В столе ${removedIndex + 1} есть выбитые игроки. Удалить стол?`)) {
-            return;
-        }
-    } else {
-        if (!confirm(`Удалить стол ${removedIndex + 1}?`)) return;
-    }
-
-    // Удаляем стол
     appData.tables.splice(removedIndex, 1);
 
-    // Корректируем индекс текущего стола
     if (currentTableIndex >= appData.tables.length) {
         currentTableIndex = appData.tables.length - 1;
     }
 
     renderTables();
-    updateAddTableButton();
+    updateAddRemoveButtons();
     updateTableIndicator();
     updateAlbumPosition();
     updateAllUI();
     saveData();
-    // Баланс не проверяем — активных игроков в удаляемом столе не было,
-    // значит общее количество активных игроков в других столах не изменилось
 }
 
-function updateAddTableButton() {
-    const addBtn = document.getElementById('addTableBtn');
+function updateAddRemoveButtons() {
     const remBtn = document.getElementById('removeTableBtn');
-
-    if (addBtn) {
-        if (appData.tables.length >= MAX_TABLES) {
-            addBtn.disabled = true;
-            addBtn.style.display = 'none';
-        } else {
-            addBtn.disabled = false;
-            addBtn.style.display = 'flex';
-        }
-    }
-
-    if (remBtn) {
-        if (appData.tables.length <= MIN_TABLES) {
-            remBtn.disabled = true;
-            remBtn.style.display = 'none';
-        } else {
-            remBtn.disabled = false;
-            remBtn.style.display = 'flex';
-        }
+    if (!remBtn) return;
+    if (appData.tables.length <= 1) {
+        remBtn.disabled = true;
+        remBtn.style.opacity = '0.4';
+        remBtn.style.pointerEvents = 'none';
+    } else {
+        remBtn.disabled = false;
+        remBtn.style.opacity = '1';
+        remBtn.style.pointerEvents = 'auto';
     }
 }
 
-// ===== РЕНДЕР СТОЛОВ =====
+// ===== РЕНДЕР =====
 function renderTables() {
     const track = document.getElementById('albumTrack');
     if (!track) return;
@@ -265,19 +343,23 @@ function createSeatButton(ti, si) {
         ? `<span class="btn-table-badge">${ti + 1}</span>`
         : '';
 
+    const minusBtn = (name && count > 0 && !isElim)
+        ? `<span class="btn-minus-count" data-table="${ti}" data-seat="${si}" title="Убрать один вход">−1</span>`
+        : '';
+
     btn.innerHTML = `
         ${tableBadge}
         ${name ? `<span class="btn-delete" data-table="${ti}" data-seat="${si}" title="Выбить игрока">✕</span>` : ''}
+        ${minusBtn}
         <div class="btn-number">${displayName}</div>
         <div class="btn-count">${count}</div>
     `;
 
-    // Перетаскивание
     attachDragHandlers(btn, ti, si, name, isElim);
 
-    // Клик
     btn.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete')) return;
+        if (e.target.classList.contains('btn-minus-count')) return;
         if (justDragged) {
             justDragged = false;
             return;
@@ -285,7 +367,6 @@ function createSeatButton(ti, si) {
         handleSeatClick(ti, si);
     });
 
-    // Крестик
     const del = btn.querySelector('.btn-delete');
     if (del) {
         del.addEventListener('click', (e) => {
@@ -294,7 +375,26 @@ function createSeatButton(ti, si) {
         });
     }
 
+    const minus = btn.querySelector('.btn-minus-count');
+    if (minus) {
+        minus.addEventListener('click', (e) => {
+            e.stopPropagation();
+            decrementEntry(ti, si);
+        });
+    }
+
     return btn;
+}
+
+function decrementEntry(ti, si) {
+    const table = appData.tables[ti];
+    if (table.players[si] > 0) {
+        table.players[si]--;
+        appData.total = Math.max(0, appData.total - 1);
+        renderTables();
+        updateAllUI();
+        saveData();
+    }
 }
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
@@ -315,6 +415,7 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
 
     btn.addEventListener('pointerdown', (e) => {
         if (e.target.classList.contains('btn-delete')) return;
+        if (e.target.classList.contains('btn-minus-count')) return;
         if (e.pointerType === 'mouse' && e.button !== 0) return;
 
         pressState = {
@@ -340,9 +441,7 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
                 ? MOVE_THRESHOLD_TOUCH
                 : MOVE_THRESHOLD_MOUSE;
 
-            if (dx > threshold || dy > threshold) {
-                beginDrag(e);
-            }
+            if (dx > threshold || dy > threshold) beginDrag(e);
             return;
         }
 
@@ -388,18 +487,18 @@ function beginDrag(e) {
     };
 
     btn.classList.add('dragging');
-    document.body.classList.add('dragging-mode');
 
     positionGhost(e.clientX, e.clientY);
 
-    if (pressState.pointerType !== 'touch') {
-        const viewport = document.querySelector('.album-viewport');
-        const track = document.getElementById('albumTrack');
-        if (viewport) viewport.classList.add('dragging-active');
-        if (track) track.classList.add('dragging-active');
-    } else {
+    document.querySelectorAll('.album-prev, .album-next').forEach(el => {
+        el.classList.add('drag-scroll-active');
+    });
+
+    if (pressState.pointerType === 'touch') {
         document.body.classList.add('touch-drag-active');
     }
+
+    window.addEventListener('wheel', onDragWheel, { passive: false });
 
     if (navigator.vibrate) navigator.vibrate(15);
 }
@@ -441,42 +540,62 @@ function handleEdgeAutoScroll(clientX) {
     if (!dragState) return;
 
     const w = window.innerWidth;
+    const prevBtn = document.querySelector('.album-prev');
+    const nextBtn = document.querySelector('.album-next');
 
-    if (clientX < EDGE_ZONE) {
-        if (!autoScrollTimer) {
-            autoScrollTimer = setInterval(() => {
-                if (currentTableIndex > 0) {
-                    currentTableIndex--;
-                    updateAlbumPosition();
-                    updateTableIndicator();
-                }
-            }, AUTO_SCROLL_INTERVAL);
-            if (currentTableIndex > 0) {
+    let zone = null;
+
+    if (prevBtn && currentTableIndex > 0) {
+        const r = prevBtn.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right) zone = 'prev';
+    }
+    if (!zone && nextBtn && currentTableIndex < appData.tables.length - 1) {
+        const r = nextBtn.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right) zone = 'next';
+    }
+    if (!zone && clientX < EDGE_ZONE && currentTableIndex > 0) zone = 'prev';
+    if (!zone && clientX > w - EDGE_ZONE && currentTableIndex < appData.tables.length - 1) zone = 'next';
+
+    if (prevBtn) prevBtn.classList.toggle('drag-scroll-hover', zone === 'prev');
+    if (nextBtn) nextBtn.classList.toggle('drag-scroll-hover', zone === 'next');
+
+    if (zone) {
+        if (autoScrollTimer && autoScrollTimer._zone === zone) return;
+        if (autoScrollTimer) clearInterval(autoScrollTimer);
+
+        const step = () => {
+            if (zone === 'prev' && currentTableIndex > 0) {
                 currentTableIndex--;
                 updateAlbumPosition();
                 updateTableIndicator();
-            }
-        }
-    } else if (clientX > w - EDGE_ZONE) {
-        if (!autoScrollTimer) {
-            autoScrollTimer = setInterval(() => {
-                if (currentTableIndex < appData.tables.length - 1) {
-                    currentTableIndex++;
-                    updateAlbumPosition();
-                    updateTableIndicator();
-                }
-            }, AUTO_SCROLL_INTERVAL);
-            if (currentTableIndex < appData.tables.length - 1) {
+            } else if (zone === 'next' && currentTableIndex < appData.tables.length - 1) {
                 currentTableIndex++;
                 updateAlbumPosition();
                 updateTableIndicator();
             }
-        }
+        };
+        step();
+        autoScrollTimer = setInterval(step, AUTO_SCROLL_INTERVAL);
+        autoScrollTimer._zone = zone;
     } else {
         if (autoScrollTimer) {
             clearInterval(autoScrollTimer);
             autoScrollTimer = null;
         }
+    }
+}
+
+function onDragWheel(e) {
+    if (!dragState) return;
+    e.preventDefault();
+    if (e.deltaY > 0 && currentTableIndex < appData.tables.length - 1) {
+        currentTableIndex++;
+        updateAlbumPosition();
+        updateTableIndicator();
+    } else if (e.deltaY < 0 && currentTableIndex > 0) {
+        currentTableIndex--;
+        updateAlbumPosition();
+        updateTableIndicator();
     }
 }
 
@@ -505,11 +624,10 @@ function finishDrag(e) {
     }
     if (srcEl) srcEl.classList.remove('dragging');
 
-    const viewport = document.querySelector('.album-viewport');
-    const track = document.getElementById('albumTrack');
-    if (viewport) viewport.classList.remove('dragging-active');
-    if (track) track.classList.remove('dragging-active');
-    document.body.classList.remove('dragging-mode');
+    document.querySelectorAll('.album-arrow.drag-scroll-active, .album-arrow.drag-scroll-hover')
+        .forEach(el => el.classList.remove('drag-scroll-active', 'drag-scroll-hover'));
+
+    window.removeEventListener('wheel', onDragWheel);
     document.body.classList.remove('touch-drag-active');
 
     if (autoScrollTimer) {
@@ -528,7 +646,6 @@ function finishDrag(e) {
         }
     }
 
-    // Флаг «только что тащили» — чтобы клик не сработал случайно
     justDragged = true;
     setTimeout(() => { justDragged = false; }, 300);
 }
@@ -557,7 +674,6 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     renderTables();
     updateAllUI();
     saveData();
-    // Баланс НЕ проверяем — перемещение не считается добавлением/удалением
 }
 
 // ===== КЛИК =====
@@ -569,7 +685,10 @@ function handleSeatClick(ti, si) {
         pendingSeat = { tableIndex: ti, seatIndex: si };
         const modal = document.getElementById('nameModal');
         const input = document.getElementById('playerNameInput');
+        const err = document.getElementById('nameError');
         input.value = '';
+        input.classList.remove('error');
+        err.style.display = 'none';
         modal.classList.add('active');
         setTimeout(() => input.focus(), 100);
         return;
@@ -578,7 +697,6 @@ function handleSeatClick(ti, si) {
     const isElim = appData.eliminated.some(e => e.name === name);
     if (isElim) return;
 
-    // Пополнение входа существующего игрока — баланс НЕ проверяем
     table.players[si]++;
     appData.total++;
     updateAllUI();
@@ -587,7 +705,19 @@ function handleSeatClick(ti, si) {
 
 function confirmPlayerName() {
     const name = document.getElementById('playerNameInput').value.trim();
-    if (pendingSeat && name) {
+    const err = document.getElementById('nameError');
+    const input = document.getElementById('playerNameInput');
+
+    if (!name) { closeNameModal(); return; }
+
+    if (isNameTaken(name)) {
+        err.textContent = `Имя "${name}" уже занято другим игроком.`;
+        err.style.display = 'block';
+        input.classList.add('error');
+        return;
+    }
+
+    if (pendingSeat) {
         const { tableIndex, seatIndex } = pendingSeat;
         appData.tables[tableIndex].names[seatIndex] = name;
         appData.tables[tableIndex].players[seatIndex] = 1;
@@ -595,14 +725,30 @@ function confirmPlayerName() {
         renderTables();
         updateAllUI();
         saveData();
-        // Новый игрок — проверяем дисбаланс
         checkBalance();
     }
     closeNameModal();
 }
 
+function isNameTaken(name) {
+    const lower = name.toLowerCase();
+    for (const t of appData.tables) {
+        for (const n of t.names) {
+            if (n && n.toLowerCase() === lower) return true;
+        }
+    }
+    for (const e of appData.eliminated) {
+        if (e.name && e.name.toLowerCase() === lower) return true;
+    }
+    return false;
+}
+
 function closeNameModal() {
     document.getElementById('nameModal').classList.remove('active');
+    const err = document.getElementById('nameError');
+    const input = document.getElementById('playerNameInput');
+    if (err) err.style.display = 'none';
+    if (input) input.classList.remove('error');
     pendingSeat = null;
 }
 
@@ -612,12 +758,14 @@ function eliminatePlayer(ti, si) {
     const name = table.names[si];
     if (!name) return;
 
-    if (!confirm(`Выбить игрока "${name}"?`)) return;
-
     if (!appData.eliminated.some(e => e.name === name)) {
+        const totalUnique = countAllUniquePlayers();
+        const eliminatedSoFar = appData.eliminated.length;
+        const order = Math.max(1, totalUnique - eliminatedSoFar);
+
         appData.eliminated.push({
             name,
-            order: appData.eliminated.length + 1,
+            order: order,
             tableNumber: ti + 1
         });
     }
@@ -625,8 +773,20 @@ function eliminatePlayer(ti, si) {
     renderTables();
     updateAllUI();
     saveData();
-    // Игрок выбит — проверяем дисбаланс
     checkBalance();
+}
+
+function countAllUniquePlayers() {
+    const set = new Set();
+    for (const t of appData.tables) {
+        for (const n of t.names) {
+            if (n) set.add(n.toLowerCase());
+        }
+    }
+    for (const e of appData.eliminated) {
+        if (e.name) set.add(e.name.toLowerCase());
+    }
+    return set.size;
 }
 
 // ===== ДИСБАЛАНС =====
@@ -648,29 +808,20 @@ function getImbalanceInfo() {
 
     const overloadedTables = [];
     if (imbalanced) {
-        counts.forEach((c, i) => {
-            if (c === max) overloadedTables.push(i);
-        });
+        counts.forEach((c, i) => { if (c === max) overloadedTables.push(i); });
     }
     return { counts, diff, imbalanced, overloadedTables };
 }
 
 function checkBalance(silent = false) {
     const info = getImbalanceInfo();
-
     renderTables();
-
     const overlay = document.getElementById('imbalanceOverlay');
     if (info.imbalanced) {
         stopTimer();
-
         const parts = info.counts.map((c, i) => `Стол ${i + 1}: ${c}`).join(', ');
-        document.getElementById('balanceText').textContent =
-            `${parts}. Разница ${info.diff}.`;
-
-        if (!silent && overlay) {
-            overlay.classList.add('active');
-        }
+        document.getElementById('balanceText').textContent = `${parts}. Разница ${info.diff}.`;
+        if (!silent && overlay) overlay.classList.add('active');
     } else {
         if (overlay) overlay.classList.remove('active');
     }
@@ -709,59 +860,83 @@ function updateTableIndicator() {
 function startTimer() {
     if (timer.running) return;
     const info = getImbalanceInfo();
-    if (info.imbalanced) {
-        checkBalance();
-        return;
-    }
+    if (info.imbalanced) { checkBalance(); return; }
     timer.running = true;
+    const layout = document.querySelector('.main-layout');
+    if (layout) layout.classList.add('focus-timer');
+
     timer.interval = setInterval(() => {
         if (timer.totalSeconds > 0) {
             timer.totalSeconds--;
             updateTimerDisplay();
+            saveData();          // сохраняем каждую секунду
         } else {
             nextLevel();
         }
     }, 1000);
+
+    saveData();
 }
 
 function stopTimer() {
     timer.running = false;
     clearInterval(timer.interval);
     timer.interval = null;
+    const layout = document.querySelector('.main-layout');
+    if (layout) layout.classList.remove('focus-timer');
     saveData();
 }
 
 function skipLevel() {
-    if (confirm(`Перейти на уровень ${level + 1}?`)) {
-        stopTimer();
-        nextLevel();
-    }
+    const cfg = GAME_MODES[gameMode];
+    if (cfg && cfg.levels === false) return;
+
+    const wasRunning = timer.running;
+    stopTimer();
+    nextLevel();
+    if (wasRunning) startTimer();
 }
 
 function nextLevel() {
+    const cfg = GAME_MODES[gameMode];
+    if (cfg && cfg.levels === false) {
+        // Кэш — просто перезапуск таймера
+        timer.totalSeconds = timer.maxSeconds;
+        updateTimerDisplay();
+        saveData();
+        return;
+    }
+
     if (level < blindSequence.length) {
         level++;
         updateBlinds();
-        timer.totalSeconds = 10 * 60;
-        timer.maxSeconds = 10 * 60;
+        timer.totalSeconds = getLevelDuration(level);
+        timer.maxSeconds = timer.totalSeconds;
         updateTimerDisplay();
-        renderStructure();
+        updateNextLevelOnly();
+        updateAnteDisplay();
         updateAllUI();
         saveData();
-        if (timer.running) startTimer();
     }
 }
 
 function prevLevel() {
+    const cfg = GAME_MODES[gameMode];
+    if (cfg && cfg.levels === false) return;
+
     if (level > 1) {
+        const wasRunning = timer.running;
+        if (wasRunning) stopTimer();
         level--;
         updateBlinds();
-        timer.totalSeconds = 10 * 60;
-        timer.maxSeconds = 10 * 60;
+        timer.totalSeconds = getLevelDuration(level);
+        timer.maxSeconds = timer.totalSeconds;
         updateTimerDisplay();
-        renderStructure();
+        updateNextLevelOnly();
+        updateAnteDisplay();
         updateAllUI();
         saveData();
+        if (wasRunning) startTimer();
     }
 }
 
@@ -799,28 +974,25 @@ function updateProgressBar() {
     else circle.style.stroke = '#2ecc71';
 }
 
-// ===== СТРУКТУРА =====
-function renderStructure() {
-    const list = document.getElementById('structureList');
-    if (!list) return;
-    list.innerHTML = '';
-    const start = Math.max(0, level - 6);
-    const end = Math.min(blindSequence.length, level + 5);
-    for (let i = start; i < end; i++) {
-        const item = document.createElement('div');
-        item.className = 'structure-item' + (i === level - 1 ? ' current' : '');
-        const mb = blindSequence[i];
-        item.innerHTML = `<span class="lvl">Ур. ${i + 1}</span><span>${mb}/${mb*2}</span>`;
-        list.appendChild(item);
+// ===== СЛЕДУЮЩИЙ УРОВЕНЬ =====
+function updateNextLevelOnly() {
+    const el = document.getElementById('nextLevelOnly');
+    if (!el) return;
+    const cfg = GAME_MODES[gameMode];
+    if (cfg && cfg.levels === false) {
+        el.textContent = 'Кэш-игра';
+        return;
     }
+    const nextMB = blindSequence[level] || Math.ceil(mbScore * 1.25);
+    el.textContent = `Следующий: ${nextMB} / ${nextMB * 2}`;
 }
 
 // ===== UI =====
 function updateAllUI() {
-    updateBlinds();
     updateTimerDisplay();
     updateLevelDisplay();
-    updateStructure();
+    updateNextLevelOnly();
+    updateAnteDisplay();
     updatePrizePool();
     updateEliminatedList();
     updateTotal();
@@ -831,10 +1003,14 @@ function updateAllUI() {
 
 function updateLevelDisplay() {
     const el = document.getElementById('levelDisplay');
-    if (el) el.textContent = `Уровень ${level}`;
+    if (!el) return;
+    const cfg = GAME_MODES[gameMode];
+    if (cfg && cfg.levels === false) {
+        el.textContent = 'Кэш';
+    } else {
+        el.textContent = `Уровень ${level}`;
+    }
 }
-
-function updateStructure() { renderStructure(); }
 
 function updateTotal() {
     const el = document.getElementById('total');
@@ -906,7 +1082,8 @@ function updateEliminatedList() {
         list.innerHTML = '<div class="eliminated-empty">Пока никого</div>';
         return;
     }
-    appData.eliminated.forEach(e => {
+    const sorted = [...appData.eliminated].sort((a, b) => a.order - b.order);
+    sorted.forEach(e => {
         const div = document.createElement('div');
         div.className = 'eliminated-item';
         div.innerHTML =
@@ -998,33 +1175,51 @@ function selectOption(opt) {
     saveData();
 }
 
-// ===== СБРОС =====
 function resetAll() {
-    if (!confirm('Сбросить ВСЁ?')) return;
     stopTimer();
+    document.querySelector('.main-layout')?.classList.remove('focus-timer');
+
     appData = {
         total: 0,
         tables: [emptyTable(), emptyTable()],
         eliminated: []
     };
-    level = 1;
-    currentMultiplier = 150;
+    currentMultiplier = 500;
     currentOption = 2;
     deductTenPercent = false;
     currentTableIndex = 0;
     timer = { totalSeconds: 600, maxSeconds: 600, running: false, interval: null };
 
-    document.getElementById('deductTenPercent').checked = false;
-    document.getElementById('customMultiplier').value = '';
+    // Сброс UI настроек
+    const cb = document.getElementById('deductTenPercent');
+    if (cb) cb.checked = false;
+
+    const custom = document.getElementById('customMultiplier');
+    if (custom) custom.value = '';
+
     menuExpanded = { prize: true, auto: false, dist: false };
     closeBalanceOverlay();
 
+    // Переприменяем текущий режим — уровень и блайнды с 1-го
+    if (gameMode) {
+        applyGameMode();
+    } else {
+        level = 1;
+        mbScore = 100;
+        bbScore = 200;
+        anteScore = 0;
+        updateAnteDisplay();
+        updateLevelDisplay();
+        updateNextLevelOnly();
+        updateTimerDisplay();
+        updateProgressBar();
+    }
+
     renderTables();
-    updateAddTableButton();
+    updateAddRemoveButtons();
     updateAllUI();
     initializeMenuSections();
     saveData();
-    alert('Сброшено!');
 }
 
 document.addEventListener('keydown', e => {
@@ -1033,8 +1228,10 @@ document.addEventListener('keydown', e => {
     }
     if (e.key === 'Escape') {
         closeNameModal();
+        document.getElementById('gameModeOverlay').classList.remove('active');
     }
 });
 
+// Периодическое автосохранение (на случай, если что-то изменится не через saveData)
 setInterval(saveData, 5000);
 window.addEventListener('beforeunload', saveData);

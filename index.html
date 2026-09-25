@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Покерный таймер</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="burger-menu">
@@ -14,6 +14,28 @@
             <div class="burger-line"></div>
             <div class="burger-line"></div>
         </button>
+    </div>
+
+    <!-- ГЛАВНОЕ МЕНЮ ВЫБОРА РЕЖИМА -->
+    <div class="gamemode-overlay" id="gameModeOverlay">
+        <div class="gamemode-content">
+            <h1>Выберите вид игры</h1>
+            <div class="gamemode-buttons">
+                <button class="gamemode-btn" data-mode="tournament" onclick="selectGameMode('tournament')">
+                    <i class="fas fa-trophy"></i>
+                    <span>Турнир</span>
+                </button>
+                <button class="gamemode-btn" data-mode="tournament-ante" onclick="selectGameMode('tournament-ante')">
+                    <i class="fas fa-fire"></i>
+                    <span>Турнир с анте</span>
+                </button>
+                <button class="gamemode-btn" data-mode="cash" onclick="selectGameMode('cash')">
+                    <i class="fas fa-coins"></i>
+                    <span>Кэш</span>
+                </button>
+            </div>
+            <div class="gamemode-hint">Режим можно поменять в любой момент через кнопку сверху</div>
+        </div>
     </div>
 
     <!-- ОВЕРЛЕЙ ДИСБАЛАНСА -->
@@ -72,13 +94,14 @@
                     <span class="blind-label">ББ</span>
                     <span class="blind-value" id="bbScore">200</span>
                 </div>
+                <div class="blind-display blind-ante" id="anteBox" style="display:none;">
+                    <span class="blind-label">АНТЕ</span>
+                    <span class="blind-value" id="anteScore">0</span>
+                </div>
             </div>
 
-            <div class="divider"></div>
-
-            <div class="structure-box">
-                <div class="structure-title">Структура</div>
-                <div class="structure-list" id="structureList"></div>
+            <div class="next-level-only" id="nextLevelOnly">
+                Следующий: 200 / 400
             </div>
         </div>
 
@@ -94,12 +117,14 @@
                 <button class="album-arrow album-next" onclick="nextTable()">
                     <i class="fas fa-chevron-right"></i>
                 </button>
-                <button class="album-arrow album-remove" id="removeTableBtn" onclick="removeTable()" title="Удалить текущий стол">
-                    <i class="fas fa-minus"></i>
-                </button>
-                <button class="album-arrow album-add" id="addTableBtn" onclick="addTable()" title="Добавить стол">
-                    <i class="fas fa-plus"></i>
-                </button>
+                <div class="album-add-remove">
+                    <button class="album-arrow album-add" id="addTableBtn" onclick="addTable()" title="Добавить стол">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button class="album-arrow album-remove" id="removeTableBtn" onclick="removeTable()" title="Удалить текущий стол">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="table-indicator" id="tableIndicator">Стол 1 / 2</div>
@@ -128,6 +153,12 @@
             </div>
         </div>
     </div>
+
+    <!-- КНОПКА СМЕНЫ РЕЖИМА -->
+    <button class="mode-switch-btn" id="modeSwitchBtn" onclick="openGameModeSelector()" title="Сменить вид игры">
+        <i class="fas fa-gamepad"></i>
+        <span id="modeSwitchLabel">Турнир</span>
+    </button>
 
     <!-- САЙДБАР -->
     <div class="sidebar" id="sidebar">
@@ -159,9 +190,8 @@
             </div>
             <div class="section-content" id="autoSection">
                 <div class="multiplier-selector">
-                    <button class="multiplier-btn" onclick="selectMultiplier(100)">× 100</button>
-                    <button class="multiplier-btn active" onclick="selectMultiplier(150)">× 150</button>
-                    <button class="multiplier-btn" onclick="selectMultiplier(200)">× 200</button>
+                    <button class="multiplier-btn active" onclick="selectMultiplier(500)">× 500</button>
+                    <button class="multiplier-btn" onclick="selectMultiplier(1000)">× 1000</button>
                 </div>
                 <div class="custom-multiplier">
                     <input type="number" id="customMultiplier" class="setting-input" placeholder="Свой множитель" min="1">
@@ -198,6 +228,7 @@
         <div class="modal-content">
             <h3>Имя игрока</h3>
             <input type="text" id="playerNameInput" class="modal-input" placeholder="Имя" maxlength="20">
+            <div class="modal-error" id="nameError" style="display:none;"></div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" onclick="closeNameModal()">Отмена</button>
                 <button class="modal-btn modal-btn-confirm" onclick="confirmPlayerName()">OK</button>
@@ -205,6 +236,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
