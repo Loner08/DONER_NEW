@@ -391,10 +391,25 @@ function decrementEntry(ti, si) {
     if (table.players[si] > 0) {
         table.players[si]--;
         appData.total = Math.max(0, appData.total - 1);
-        renderTables();
-        updateAllUI();
+
+        // Если счётчик стал 0 — перерисовываем (нужно убрать кнопку «−1» и, возможно, очистить карточку)
+        if (table.players[si] === 0) {
+            renderTables();
+        } else {
+            updateSeatCount(ti, si);
+        }
+        updateTotal();
+        updatePrizePool();
         saveData();
     }
+}
+
+function updateSeatCount(ti, si) {
+    const count = appData.tables[ti].players[si];
+    const btn = document.querySelector(`.number-btn[data-table="${ti}"][data-seat="${si}"]`);
+    if (!btn) return;
+    const countEl = btn.querySelector('.btn-count');
+    if (countEl) countEl.textContent = count;
 }
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
@@ -699,7 +714,9 @@ function handleSeatClick(ti, si) {
 
     table.players[si]++;
     appData.total++;
-    updateAllUI();
+    updateSeatCount(ti, si);
+    updateTotal();
+    updatePrizePool();   // на случай, если отображение очков зависит от общего счётчика
     saveData();
 }
 
