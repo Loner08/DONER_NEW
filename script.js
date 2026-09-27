@@ -79,7 +79,8 @@ const structure = [
     { type: 'level', mb: 15000,  bb: 30000,  duration: 12 * 60 },
     { type: 'level', mb: 18000,  bb: 36000,  duration: 12 * 60 },
     { type: 'level', mb: 20000,  bb: 40000,  duration: 12 * 60 },
-    
+    // (Перерыв после 26-го убран)
+
     // Уровни 27-40: 12 минут
     { type: 'level', mb: 25000,  bb: 50000,   duration: 12 * 60 },
     { type: 'level', mb: 30000,  bb: 60000,   duration: 12 * 60 },
@@ -96,7 +97,7 @@ const structure = [
     { type: 'level', mb: 250000, bb: 500000,  duration: 12 * 60 },
     { type: 'level', mb: 300000, bb: 600000,  duration: 12 * 60 },
 
-    // ФИНАЛ
+    // Финальный уровень (последний, дальше не идти)
     { type: 'final', mb: 400000, bb: 800000 }
 ];
 
@@ -189,7 +190,6 @@ function loadData() {
             timer.running = false;
             timer.interval = null;
 
-            // Уровень — индекс в structure, ограничиваем
             level = Math.min(Math.max(1, d.level || 1), structure.length);
             mbScore = d.mbScore || 100;
             bbScore = d.bbScore || 100;
@@ -244,14 +244,12 @@ function updateModeSwitchLabel() {
     if (el) el.textContent = GAME_MODE_NAMES[gameMode] || 'Игра';
 }
 
-// Вызывается ТОЛЬКО при смене режима и при сбросе ВСЁ
 function applyGameMode() {
     if (!gameMode) return;
     const cfg = GAME_MODES[gameMode];
     if (!cfg) return;
 
     if (!cfg.levels) {
-        // Кэш: фиксированные блайнды, никаких уровней
         mbScore = cfg.mb;
         bbScore = cfg.bb;
         anteScore = 0;
@@ -259,7 +257,6 @@ function applyGameMode() {
         timer.totalSeconds = 15 * 60;
         timer.maxSeconds = 15 * 60;
     } else {
-        // Турнир: старт с первого уровня структуры
         level = 1;
         const item = structure[0];
         mbScore = item.mb;
@@ -287,11 +284,9 @@ function updateAnteDisplay() {
         return;
     }
 
-    // Анте показывается только в режиме "Турнир с анте" начиная с 9 уровня
-    // (учитывая, что перерывы в структуре тоже считаются за номер)
     if (cfg.ante && cfg.levels && level >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
-        anteScoreEl.textContent = bbScore * 2;
+        anteScoreEl.textContent = formatBlind(bbScore * 2);
         anteScore = bbScore * 2;
     } else {
         anteBox.style.display = 'none';
@@ -788,7 +783,6 @@ function handleSeatClick(ti, si) {
     table.players[si]++;
     appData.total++;
 
-    // Мгновенное обновление счётчика на карточке
     updateSeatCount(ti, si);
     updateTotal();
     updatePrizePool();
@@ -953,7 +947,6 @@ function updateTableIndicator() {
 function startTimer() {
     if (timer.running) return;
 
-    // На финале таймер не идёт
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         return;
     }
@@ -1000,7 +993,6 @@ function skipLevel() {
 function nextLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) {
-        // Кэш — просто перезапуск таймера
         timer.totalSeconds = timer.maxSeconds;
         updateTimerDisplay();
         saveData();
@@ -1008,7 +1000,6 @@ function nextLevel() {
     }
 
     if (level >= structure.length) {
-        // уже на финале — дальше некуда
         stopTimer();
         return;
     }
@@ -1018,7 +1009,6 @@ function nextLevel() {
 
     const duration = getLevelDuration(level);
     if (duration === Infinity) {
-        // Финал — таймер не идёт
         timer.totalSeconds = 0;
         timer.maxSeconds = 0;
         stopTimer();
@@ -1068,10 +1058,7 @@ function prevLevel() {
 
 function updateBlinds() {
     const item = getStructureItem(level);
-    if (!item) {
-        // на всякий случай
-        return;
-    }
+    if (!item) return;
     if (item.type === 'level' || item.type === 'final') {
         mbScore = item.mb;
         bbScore = item.bb;
@@ -1083,7 +1070,6 @@ function updateTimerDisplay() {
     const display = document.getElementById('timerDisplay');
     if (!display) return;
 
-    // Финал — показываем "—"
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         display.textContent = '—';
         display.classList.remove('blinking');
@@ -1110,7 +1096,6 @@ function updateProgressBar() {
     const circle = document.querySelector('.progress-ring-circle');
     if (!circle) return;
 
-    // Финал — прогресс не показываем
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         circle.style.strokeDashoffset = 0;
         circle.style.stroke = '#9b59b6';
@@ -1136,17 +1121,17 @@ function updateNextLevelOnly() {
         return;
     }
 
-    // const next = structure[level];
-    // if (!next) {
-    //     el.textContent = 'ФИНАЛ';
-    //     return;
-    // }
+    const next = structure[level];
+    if (!next) {
+        el.textContent = '—';
+        return;
+    }
 
     if (next.type === 'break') {
         const mins = Math.round(next.duration / 60);
         el.textContent = `Следующий: ПЕРЕРЫВ (${mins} мин)`;
     } else {
-        el.textContent = `Следующий: ${next.mb} / ${next.bb}`;
+        el.textContent = `Следующий: ${formatBlind(next.mb)} / ${formatBlind(next.bb)}`;
     }
 }
 
@@ -1162,9 +1147,6 @@ function updateAllUI() {
 
     document.getElementById('mbScore').textContent = formatBlind(mbScore);
     document.getElementById('bbScore').textContent = formatBlind(bbScore);
-}
-function formatBlind(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 function updateLevelDisplay() {
@@ -1272,6 +1254,11 @@ function updateEliminatedList() {
 
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+function formatBlind(num) {
+    if (num === undefined || num === null || num === '') return '';
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 // ===== МЕНЮ =====
