@@ -22,31 +22,90 @@ let pendingSeat = null;
 let gameMode = null;
 
 let timer = {
-    totalSeconds: 10 * 60,
-    maxSeconds: 10 * 60,
+    totalSeconds: 15 * 60,
+    maxSeconds: 15 * 60,
     running: false,
     interval: null
 };
 
 let level = 1;
 let mbScore = 100;
-let bbScore = 200;
+let bbScore = 100;
 let anteScore = 0;
 
 let menuExpanded = { prize: true, auto: false, dist: false };
 
-const blindSequence = [
-    100, 200, 300, 400, 500, 600, 700, 800,
-    1000, 1200, 1400, 1600, 1800, 2000,
-    2500, 3500, 4000, 4500, 5000,
-    6000, 7000, 8000, 10000, 12000, 14000, 16000, 18000, 20000,
-    25000, 30000, 35000, 40000
+// ===== СТРУКТУРА ТУРНИРА =====
+// type: 'level' — обычный уровень (mb, bb, duration в секундах)
+// type: 'break' — перерыв (только duration)
+// type: 'final' — финал (mb, bb, без таймера)
+const structure = [
+    // Уровни 1-4: 15 минут
+    { type: 'level', mb: 100,  bb: 100,   duration: 15 * 60 },
+    { type: 'level', mb: 100,  bb: 200,   duration: 15 * 60 },
+    { type: 'level', mb: 100,  bb: 300,   duration: 15 * 60 },
+    { type: 'level', mb: 200,  bb: 400,   duration: 15 * 60 },
+    // Перерыв 15 минут
+    { type: 'break', duration: 15 * 60 },
+
+    // Уровни 5-8: 15 минут
+    { type: 'level', mb: 300,  bb: 600,   duration: 15 * 60 },
+    { type: 'level', mb: 400,  bb: 800,   duration: 15 * 60 },
+    { type: 'level', mb: 500,  bb: 1000,  duration: 15 * 60 },
+    { type: 'level', mb: 800,  bb: 1600,  duration: 15 * 60 },
+    // ПЕРЕРЫВ + АДДОН: 1 час
+    { type: 'break', duration: 60 * 60 },
+
+    // Уровни 9-18: 12 минут
+    { type: 'level', mb: 1000,   bb: 2000,   duration: 12 * 60 },
+    { type: 'level', mb: 1200,   bb: 2400,   duration: 12 * 60 },
+    { type: 'level', mb: 1400,   bb: 2800,   duration: 12 * 60 },
+    { type: 'level', mb: 1600,   bb: 3200,   duration: 12 * 60 },
+    { type: 'level', mb: 2000,   bb: 4000,   duration: 12 * 60 },
+    { type: 'level', mb: 2500,   bb: 5000,   duration: 12 * 60 },
+    { type: 'level', mb: 3000,   bb: 6000,   duration: 12 * 60 },
+    { type: 'level', mb: 3500,   bb: 7000,   duration: 12 * 60 },
+    { type: 'level', mb: 4000,   bb: 8000,   duration: 12 * 60 },
+    { type: 'level', mb: 5000,   bb: 10000,  duration: 12 * 60 },
+    // Перерыв 15 минут
+    { type: 'break', duration: 15 * 60 },
+
+    // Уровни 19-26: 12 минут
+    { type: 'level', mb: 6000,   bb: 12000,  duration: 12 * 60 },
+    { type: 'level', mb: 7000,   bb: 14000,  duration: 12 * 60 },
+    { type: 'level', mb: 8000,   bb: 16000,  duration: 12 * 60 },
+    { type: 'level', mb: 10000,  bb: 20000,  duration: 12 * 60 },
+    { type: 'level', mb: 12000,  bb: 24000,  duration: 12 * 60 },
+    { type: 'level', mb: 15000,  bb: 30000,  duration: 12 * 60 },
+    { type: 'level', mb: 18000,  bb: 36000,  duration: 12 * 60 },
+    { type: 'level', mb: 20000,  bb: 40000,  duration: 12 * 60 },
+    // Перерыв 15 минут
+    { type: 'break', duration: 15 * 60 },
+
+    // Уровни 27-40: 12 минут
+    { type: 'level', mb: 25000,  bb: 50000,   duration: 12 * 60 },
+    { type: 'level', mb: 30000,  bb: 60000,   duration: 12 * 60 },
+    { type: 'level', mb: 35000,  bb: 70000,   duration: 12 * 60 },
+    { type: 'level', mb: 40000,  bb: 80000,   duration: 12 * 60 },
+    { type: 'level', mb: 50000,  bb: 100000,  duration: 12 * 60 },
+    { type: 'level', mb: 60000,  bb: 120000,  duration: 12 * 60 },
+    { type: 'level', mb: 70000,  bb: 140000,  duration: 12 * 60 },
+    { type: 'level', mb: 80000,  bb: 160000,  duration: 12 * 60 },
+    { type: 'level', mb: 100000, bb: 200000,  duration: 12 * 60 },
+    { type: 'level', mb: 120000, bb: 240000,  duration: 12 * 60 },
+    { type: 'level', mb: 150000, bb: 300000,  duration: 12 * 60 },
+    { type: 'level', mb: 200000, bb: 400000,  duration: 12 * 60 },
+    { type: 'level', mb: 250000, bb: 500000,  duration: 12 * 60 },
+    { type: 'level', mb: 300000, bb: 600000,  duration: 12 * 60 },
+
+    // ФИНАЛ
+    { type: 'final', mb: 400000, bb: 800000 }
 ];
 
 // Конфигурация режимов
 const GAME_MODES = {
-    'tournament':      { label: 'Турнир',         ante: false, levels: true,  mb: 100, bb: 200 },
-    'tournament-ante': { label: 'Турнир с анте',  ante: true,  levels: true,  mb: 100, bb: 200 },
+    'tournament':      { label: 'Турнир',         ante: false, levels: true,  mb: 100, bb: 100 },
+    'tournament-ante': { label: 'Турнир с анте',  ante: true,  levels: true,  mb: 100, bb: 100 },
     'cash':            { label: 'Кэш',            ante: false, levels: false, mb: 5,   bb: 10  }
 };
 
@@ -56,9 +115,26 @@ const GAME_MODE_NAMES = {
     'cash': 'Кэш'
 };
 
-// Длительность уровня: 1–8 — 10 мин, с 9 — 7 мин
+// ===== ВСПОМОГАТЕЛЬНЫЕ =====
+function getStructureItem(levelNumber) {
+    return structure[levelNumber - 1] || null;
+}
+
 function getLevelDuration(levelNumber) {
-    return levelNumber <= 8 ? 10 * 60 : 7 * 60;
+    const item = getStructureItem(levelNumber);
+    if (!item) return 15 * 60;
+    if (item.type === 'final') return Infinity;
+    return item.duration;
+}
+
+function isBreakLevel(levelNumber) {
+    const item = getStructureItem(levelNumber);
+    return item && item.type === 'break';
+}
+
+function isFinalLevel(levelNumber) {
+    const item = getStructureItem(levelNumber);
+    return item && item.type === 'final';
 }
 
 // ===== СТАРТ =====
@@ -70,11 +146,9 @@ window.onload = function() {
     checkBalance(true);
 
     if (!gameMode) {
-        // Нет сохранённого режима — показываем меню выбора
         document.getElementById('gameModeOverlay').classList.add('active');
         updateAllUI();
     } else {
-        // Восстанавливаем всё из localStorage, НЕ сбрасываем таймер
         updateModeSwitchLabel();
         updateAllUI();
     }
@@ -110,18 +184,17 @@ function loadData() {
                 });
             }
 
-            // Восстанавливаем таймер как был
             if (d.timer) {
-                timer.totalSeconds = d.timer.totalSeconds ?? 600;
-                timer.maxSeconds = d.timer.maxSeconds ?? 600;
+                timer.totalSeconds = d.timer.totalSeconds ?? 15 * 60;
+                timer.maxSeconds = d.timer.maxSeconds ?? 15 * 60;
             }
             timer.running = false;
             timer.interval = null;
 
-            // Восстанавливаем уровень, блайнды, анте
-            level = d.level || 1;
+            // Уровень — индекс в structure, ограничиваем
+            level = Math.min(Math.max(1, d.level || 1), structure.length);
             mbScore = d.mbScore || 100;
-            bbScore = d.bbScore || 200;
+            bbScore = d.bbScore || 100;
             anteScore = d.anteScore || 0;
 
             currentMultiplier = d.currentMultiplier || 500;
@@ -185,16 +258,17 @@ function applyGameMode() {
         bbScore = cfg.bb;
         anteScore = 0;
         level = 1;
-        timer.totalSeconds = getLevelDuration(1);
-        timer.maxSeconds = timer.totalSeconds;
+        timer.totalSeconds = 15 * 60;
+        timer.maxSeconds = 15 * 60;
     } else {
-        // Турнир / турнир-анте: стартуем с 1 уровня
+        // Турнир: старт с первого уровня структуры
         level = 1;
-        mbScore = blindSequence[0];
-        bbScore = mbScore * 2;
-        timer.totalSeconds = getLevelDuration(1);
-        timer.maxSeconds = timer.totalSeconds;
+        const item = structure[0];
+        mbScore = item.mb;
+        bbScore = item.bb;
         anteScore = 0;
+        timer.totalSeconds = item.duration;
+        timer.maxSeconds = item.duration;
     }
 
     updateAnteDisplay();
@@ -215,7 +289,9 @@ function updateAnteDisplay() {
         return;
     }
 
-    if (cfg.ante && cfg.levels && level >= 9) {
+    // Анте показывается только в режиме "Турнир с анте" начиная с 9 уровня
+    // (учитывая, что перерывы в структуре тоже считаются за номер)
+    if (cfg.ante && cfg.levels && level >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
         anteScoreEl.textContent = bbScore * 2;
         anteScore = bbScore * 2;
@@ -386,13 +462,20 @@ function createSeatButton(ti, si) {
     return btn;
 }
 
+function updateSeatCount(ti, si) {
+    const count = appData.tables[ti].players[si];
+    const btn = document.querySelector(`.number-btn[data-table="${ti}"][data-seat="${si}"]`);
+    if (!btn) return;
+    const countEl = btn.querySelector('.btn-count');
+    if (countEl) countEl.textContent = count;
+}
+
 function decrementEntry(ti, si) {
     const table = appData.tables[ti];
     if (table.players[si] > 0) {
         table.players[si]--;
         appData.total = Math.max(0, appData.total - 1);
 
-        // Если счётчик стал 0 — перерисовываем (нужно убрать кнопку «−1» и, возможно, очистить карточку)
         if (table.players[si] === 0) {
             renderTables();
         } else {
@@ -402,14 +485,6 @@ function decrementEntry(ti, si) {
         updatePrizePool();
         saveData();
     }
-}
-
-function updateSeatCount(ti, si) {
-    const count = appData.tables[ti].players[si];
-    const btn = document.querySelector(`.number-btn[data-table="${ti}"][data-seat="${si}"]`);
-    if (!btn) return;
-    const countEl = btn.querySelector('.btn-count');
-    if (countEl) countEl.textContent = count;
 }
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
@@ -714,9 +789,12 @@ function handleSeatClick(ti, si) {
 
     table.players[si]++;
     appData.total++;
+
+    // Мгновенное обновление счётчика на карточке
     updateSeatCount(ti, si);
     updateTotal();
-    updatePrizePool();   // на случай, если отображение очков зависит от общего счётчика
+    updatePrizePool();
+
     saveData();
 }
 
@@ -876,8 +954,15 @@ function updateTableIndicator() {
 // ===== ТАЙМЕР =====
 function startTimer() {
     if (timer.running) return;
+
+    // На финале таймер не идёт
+    if (gameMode !== 'cash' && isFinalLevel(level)) {
+        return;
+    }
+
     const info = getImbalanceInfo();
     if (info.imbalanced) { checkBalance(); return; }
+
     timer.running = true;
     const layout = document.querySelector('.main-layout');
     if (layout) layout.classList.add('focus-timer');
@@ -886,7 +971,7 @@ function startTimer() {
         if (timer.totalSeconds > 0) {
             timer.totalSeconds--;
             updateTimerDisplay();
-            saveData();          // сохраняем каждую секунду
+            saveData();
         } else {
             nextLevel();
         }
@@ -924,17 +1009,32 @@ function nextLevel() {
         return;
     }
 
-    if (level < blindSequence.length) {
-        level++;
-        updateBlinds();
-        timer.totalSeconds = getLevelDuration(level);
-        timer.maxSeconds = timer.totalSeconds;
-        updateTimerDisplay();
-        updateNextLevelOnly();
-        updateAnteDisplay();
-        updateAllUI();
-        saveData();
+    if (level >= structure.length) {
+        // уже на финале — дальше некуда
+        stopTimer();
+        return;
     }
+
+    level++;
+    updateBlinds();
+
+    const duration = getLevelDuration(level);
+    if (duration === Infinity) {
+        // Финал — таймер не идёт
+        timer.totalSeconds = 0;
+        timer.maxSeconds = 0;
+        stopTimer();
+    } else {
+        timer.totalSeconds = duration;
+        timer.maxSeconds = duration;
+    }
+
+    updateTimerDisplay();
+    updateNextLevelOnly();
+    updateAnteDisplay();
+    updateLevelDisplay();
+    updateAllUI();
+    saveData();
 }
 
 function prevLevel() {
@@ -944,27 +1044,56 @@ function prevLevel() {
     if (level > 1) {
         const wasRunning = timer.running;
         if (wasRunning) stopTimer();
+
         level--;
         updateBlinds();
-        timer.totalSeconds = getLevelDuration(level);
-        timer.maxSeconds = timer.totalSeconds;
+
+        const duration = getLevelDuration(level);
+        if (duration === Infinity) {
+            timer.totalSeconds = 0;
+            timer.maxSeconds = 0;
+        } else {
+            timer.totalSeconds = duration;
+            timer.maxSeconds = duration;
+        }
+
         updateTimerDisplay();
         updateNextLevelOnly();
         updateAnteDisplay();
+        updateLevelDisplay();
         updateAllUI();
         saveData();
+
         if (wasRunning) startTimer();
     }
 }
 
 function updateBlinds() {
-    mbScore = blindSequence[level - 1] || 100;
-    bbScore = mbScore * 2;
+    const item = getStructureItem(level);
+    if (!item) {
+        // на всякий случай
+        return;
+    }
+    if (item.type === 'level' || item.type === 'final') {
+        mbScore = item.mb;
+        bbScore = item.bb;
+    }
+    // если перерыв — оставляем прежние значения блайндов
 }
 
 function updateTimerDisplay() {
     const display = document.getElementById('timerDisplay');
     if (!display) return;
+
+    // Финал — показываем "—"
+    if (gameMode !== 'cash' && isFinalLevel(level)) {
+        display.textContent = '—';
+        display.classList.remove('blinking');
+        display.style.color = '#2c3e50';
+        updateProgressBar();
+        return;
+    }
+
     const m = Math.floor(timer.totalSeconds / 60);
     const s = timer.totalSeconds % 60;
     display.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
@@ -982,6 +1111,14 @@ function updateTimerDisplay() {
 function updateProgressBar() {
     const circle = document.querySelector('.progress-ring-circle');
     if (!circle) return;
+
+    // Финал — прогресс не показываем
+    if (gameMode !== 'cash' && isFinalLevel(level)) {
+        circle.style.strokeDashoffset = 0;
+        circle.style.stroke = '#9b59b6';
+        return;
+    }
+
     const r = circle.r.baseVal.value;
     const circ = 2 * Math.PI * r;
     const progress = timer.maxSeconds > 0 ? timer.totalSeconds / timer.maxSeconds : 0;
@@ -1000,8 +1137,21 @@ function updateNextLevelOnly() {
         el.textContent = 'Кэш-игра';
         return;
     }
-    const nextMB = blindSequence[level] || Math.ceil(mbScore * 1.25);
-    el.textContent = `Следующий: ${nextMB} / ${nextMB * 2}`;
+
+    const next = structure[level];
+    if (!next) {
+        el.textContent = 'ФИНАЛ';
+        return;
+    }
+
+    if (next.type === 'break') {
+        const mins = Math.round(next.duration / 60);
+        el.textContent = `Следующий: ПЕРЕРЫВ (${mins} мин)`;
+    } else if (next.type === 'final') {
+        el.textContent = `Следующий: ФИНАЛ ${next.mb} / ${next.bb}`;
+    } else {
+        el.textContent = `Следующий: ${next.mb} / ${next.bb}`;
+    }
 }
 
 // ===== UI =====
@@ -1024,6 +1174,18 @@ function updateLevelDisplay() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) {
         el.textContent = 'Кэш';
+        return;
+    }
+
+    const item = getStructureItem(level);
+    if (!item) {
+        el.textContent = `Уровень ${level}`;
+        return;
+    }
+    if (item.type === 'break') {
+        el.textContent = 'ПЕРЕРЫВ';
+    } else if (item.type === 'final') {
+        el.textContent = 'ФИНАЛ';
     } else {
         el.textContent = `Уровень ${level}`;
     }
@@ -1192,6 +1354,7 @@ function selectOption(opt) {
     saveData();
 }
 
+// ===== СБРОС =====
 function resetAll() {
     stopTimer();
     document.querySelector('.main-layout')?.classList.remove('focus-timer');
@@ -1205,9 +1368,8 @@ function resetAll() {
     currentOption = 2;
     deductTenPercent = false;
     currentTableIndex = 0;
-    timer = { totalSeconds: 600, maxSeconds: 600, running: false, interval: null };
+    timer = { totalSeconds: 15 * 60, maxSeconds: 15 * 60, running: false, interval: null };
 
-    // Сброс UI настроек
     const cb = document.getElementById('deductTenPercent');
     if (cb) cb.checked = false;
 
@@ -1217,13 +1379,12 @@ function resetAll() {
     menuExpanded = { prize: true, auto: false, dist: false };
     closeBalanceOverlay();
 
-    // Переприменяем текущий режим — уровень и блайнды с 1-го
     if (gameMode) {
         applyGameMode();
     } else {
         level = 1;
         mbScore = 100;
-        bbScore = 200;
+        bbScore = 100;
         anteScore = 0;
         updateAnteDisplay();
         updateLevelDisplay();
@@ -1249,6 +1410,6 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// Периодическое автосохранение (на случай, если что-то изменится не через saveData)
+// Периодическое автосохранение
 setInterval(saveData, 5000);
 window.addEventListener('beforeunload', saveData);
