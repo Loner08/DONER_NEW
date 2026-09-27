@@ -79,9 +79,7 @@ const structure = [
     { type: 'level', mb: 15000,  bb: 30000,  duration: 12 * 60 },
     { type: 'level', mb: 18000,  bb: 36000,  duration: 12 * 60 },
     { type: 'level', mb: 20000,  bb: 40000,  duration: 12 * 60 },
-    // Перерыв 15 минут
-    { type: 'break', duration: 15 * 60 },
-
+    
     // Уровни 27-40: 12 минут
     { type: 'level', mb: 25000,  bb: 50000,   duration: 12 * 60 },
     { type: 'level', mb: 30000,  bb: 60000,   duration: 12 * 60 },
@@ -1138,17 +1136,15 @@ function updateNextLevelOnly() {
         return;
     }
 
-    const next = structure[level];
-    if (!next) {
-        el.textContent = 'ФИНАЛ';
-        return;
-    }
+    // const next = structure[level];
+    // if (!next) {
+    //     el.textContent = 'ФИНАЛ';
+    //     return;
+    // }
 
     if (next.type === 'break') {
         const mins = Math.round(next.duration / 60);
         el.textContent = `Следующий: ПЕРЕРЫВ (${mins} мин)`;
-    } else if (next.type === 'final') {
-        el.textContent = `Следующий: ФИНАЛ ${next.mb} / ${next.bb}`;
     } else {
         el.textContent = `Следующий: ${next.mb} / ${next.bb}`;
     }
@@ -1164,8 +1160,11 @@ function updateAllUI() {
     updateEliminatedList();
     updateTotal();
 
-    document.getElementById('mbScore').textContent = mbScore;
-    document.getElementById('bbScore').textContent = bbScore;
+    document.getElementById('mbScore').textContent = formatBlind(mbScore);
+    document.getElementById('bbScore').textContent = formatBlind(bbScore);
+}
+function formatBlind(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 function updateLevelDisplay() {
@@ -1184,8 +1183,6 @@ function updateLevelDisplay() {
     }
     if (item.type === 'break') {
         el.textContent = 'ПЕРЕРЫВ';
-    } else if (item.type === 'final') {
-        el.textContent = 'ФИНАЛ';
     } else {
         el.textContent = `Уровень ${level}`;
     }
