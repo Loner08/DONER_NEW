@@ -275,6 +275,7 @@ function applyGameMode() {
     updateTimerDisplay();
     updateProgressBar();
     updateTimerToBreak();
+    updateBlindsVisibility();
 }
 
 function updateAnteDisplay() {
@@ -468,7 +469,6 @@ function updateSeatCount(ti, si) {
     const countEl = btn.querySelector('.btn-count');
     if (countEl) countEl.textContent = count;
 
-    // Если счётчик стал > 1, а кнопки −1 не было — проще пересоздать
     const minus = btn.querySelector('.btn-minus-count');
     if (!minus && count >= 1) {
         renderTables();
@@ -486,7 +486,6 @@ function decrementEntry(ti, si) {
         updatePrizePool();
         saveData();
     }
-    // если 1 — ничего не делаем
 }
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
@@ -1077,7 +1076,6 @@ function updateBlinds() {
         mbScore = item.mb;
         bbScore = item.bb;
     }
-    // если перерыв — оставляем прежние значения
 }
 
 function updateTimerDisplay() {
@@ -1135,8 +1133,7 @@ function updateNextLevelOnly() {
         return;
     }
 
-    // Ищем следующий элемент в структуре
-    const next = structure[level]; // 0-based следующий
+    const next = structure[level];
 
     if (!next) {
         el.textContent = '—';
@@ -1159,26 +1156,22 @@ function updateTimerToBreak() {
 
     const cfg = GAME_MODES[gameMode];
 
-    // Только для турнирных режимов
     if (!cfg || !cfg.levels) {
         el.textContent = '';
         return;
     }
 
-    // На перерыве — показываем, сколько осталось до конца перерыва
     if (isBreakLevel(level)) {
         const m = Math.ceil(timer.totalSeconds / 60);
         el.textContent = `До конца перерыва: ${m} мин`;
         return;
     }
 
-    // На финале — ничего
     if (isFinalLevel(level)) {
         el.textContent = '';
         return;
     }
 
-    // Ищем ближайший перерыв впереди (не включая текущий уровень)
     let secondsLeft = timer.totalSeconds;
     let found = false;
 
