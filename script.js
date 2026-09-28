@@ -36,27 +36,22 @@ let anteScore = 0;
 let menuExpanded = { prize: true, auto: false, dist: false };
 
 // ===== СТРУКТУРА ТУРНИРА =====
-// type: 'level' — обычный уровень (mb, bb, duration в секундах)
-// type: 'break' — перерыв (только duration)
-// type: 'final' — финал (mb, bb, без таймера)
+// type: 'level' — уровень (mb, bb, duration)
+// type: 'break' — перерыв (duration)
+// type: 'final' — финальный уровень (mb, bb, без таймера)
 const structure = [
-    // Уровни 1-4: 15 минут
     { type: 'level', mb: 100,  bb: 100,   duration: 15 * 60 },
     { type: 'level', mb: 100,  bb: 200,   duration: 15 * 60 },
     { type: 'level', mb: 100,  bb: 300,   duration: 15 * 60 },
     { type: 'level', mb: 200,  bb: 400,   duration: 15 * 60 },
-    // Перерыв 15 минут
     { type: 'break', duration: 15 * 60 },
 
-    // Уровни 5-8: 15 минут
     { type: 'level', mb: 300,  bb: 600,   duration: 15 * 60 },
     { type: 'level', mb: 400,  bb: 800,   duration: 15 * 60 },
     { type: 'level', mb: 500,  bb: 1000,  duration: 15 * 60 },
     { type: 'level', mb: 800,  bb: 1600,  duration: 15 * 60 },
-    // ПЕРЕРЫВ + АДДОН: 1 час
     { type: 'break', duration: 60 * 60 },
 
-    // Уровни 9-18: 12 минут
     { type: 'level', mb: 1000,   bb: 2000,   duration: 12 * 60 },
     { type: 'level', mb: 1200,   bb: 2400,   duration: 12 * 60 },
     { type: 'level', mb: 1400,   bb: 2800,   duration: 12 * 60 },
@@ -67,10 +62,8 @@ const structure = [
     { type: 'level', mb: 3500,   bb: 7000,   duration: 12 * 60 },
     { type: 'level', mb: 4000,   bb: 8000,   duration: 12 * 60 },
     { type: 'level', mb: 5000,   bb: 10000,  duration: 12 * 60 },
-    // Перерыв 15 минут
     { type: 'break', duration: 15 * 60 },
 
-    // Уровни 19-26: 12 минут
     { type: 'level', mb: 6000,   bb: 12000,  duration: 12 * 60 },
     { type: 'level', mb: 7000,   bb: 14000,  duration: 12 * 60 },
     { type: 'level', mb: 8000,   bb: 16000,  duration: 12 * 60 },
@@ -79,9 +72,7 @@ const structure = [
     { type: 'level', mb: 15000,  bb: 30000,  duration: 12 * 60 },
     { type: 'level', mb: 18000,  bb: 36000,  duration: 12 * 60 },
     { type: 'level', mb: 20000,  bb: 40000,  duration: 12 * 60 },
-    // (Перерыв после 26-го убран)
 
-    // Уровни 27-40: 12 минут
     { type: 'level', mb: 25000,  bb: 50000,   duration: 12 * 60 },
     { type: 'level', mb: 30000,  bb: 60000,   duration: 12 * 60 },
     { type: 'level', mb: 35000,  bb: 70000,   duration: 12 * 60 },
@@ -97,11 +88,9 @@ const structure = [
     { type: 'level', mb: 250000, bb: 500000,  duration: 12 * 60 },
     { type: 'level', mb: 300000, bb: 600000,  duration: 12 * 60 },
 
-    // Финальный уровень (последний, дальше не идти)
     { type: 'final', mb: 400000, bb: 800000 }
 ];
 
-// Конфигурация режимов
 const GAME_MODES = {
     'tournament':      { label: 'Турнир',         ante: false, levels: true,  mb: 100, bb: 100 },
     'tournament-ante': { label: 'Турнир с анте',  ante: true,  levels: true,  mb: 100, bb: 100 },
@@ -134,6 +123,20 @@ function isBreakLevel(levelNumber) {
 function isFinalLevel(levelNumber) {
     const item = getStructureItem(levelNumber);
     return item && item.type === 'final';
+}
+
+// Номер уровня без учёта перерывов (1-based) по индексу в structure
+function getLevelNumber(index) {
+    let n = 0;
+    for (let i = 0; i < index && i < structure.length; i++) {
+        if (structure[i].type !== 'break') n++;
+    }
+    return n;
+}
+
+function formatBlind(num) {
+    if (num === undefined || num === null || num === '') return '';
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 // ===== СТАРТ =====
@@ -271,6 +274,7 @@ function applyGameMode() {
     updateNextLevelOnly();
     updateTimerDisplay();
     updateProgressBar();
+    updateTimerToBreak();
 }
 
 function updateAnteDisplay() {
@@ -284,7 +288,7 @@ function updateAnteDisplay() {
         return;
     }
 
-    if (cfg.ante && cfg.levels && level >= 9 && !isBreakLevel(level)) {
+    if (cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
         anteScoreEl.textContent = formatBlind(bbScore * 2);
         anteScore = bbScore * 2;
@@ -412,7 +416,8 @@ function createSeatButton(ti, si) {
         ? `<span class="btn-table-badge">${ti + 1}</span>`
         : '';
 
-    const minusBtn = (name && count > 0 && !isElim)
+    // Кнопка −1 показывается при count >= 1
+    const minusBtn = (name && count >= 1 && !isElim)
         ? `<span class="btn-minus-count" data-table="${ti}" data-seat="${si}" title="Убрать один вход">−1</span>`
         : '';
 
@@ -461,23 +466,26 @@ function updateSeatCount(ti, si) {
     if (!btn) return;
     const countEl = btn.querySelector('.btn-count');
     if (countEl) countEl.textContent = count;
+
+    // Если счётчик стал > 1, а кнопки −1 не было — проще пересоздать
+    const minus = btn.querySelector('.btn-minus-count');
+    if (!minus && count >= 1) {
+        renderTables();
+    }
 }
 
 function decrementEntry(ti, si) {
     const table = appData.tables[ti];
-    if (table.players[si] > 0) {
+    // Нельзя уменьшить, если 1 — 0 не должен получаться
+    if (table.players[si] > 1) {
         table.players[si]--;
         appData.total = Math.max(0, appData.total - 1);
-
-        if (table.players[si] === 0) {
-            renderTables();
-        } else {
-            updateSeatCount(ti, si);
-        }
+        updateSeatCount(ti, si);
         updateTotal();
         updatePrizePool();
         saveData();
     }
+    // если 1 — ничего не делаем
 }
 
 // ===== ПЕРЕТАСКИВАНИЕ =====
@@ -962,6 +970,7 @@ function startTimer() {
         if (timer.totalSeconds > 0) {
             timer.totalSeconds--;
             updateTimerDisplay();
+            updateTimerToBreak();
             saveData();
         } else {
             nextLevel();
@@ -1021,6 +1030,8 @@ function nextLevel() {
     updateNextLevelOnly();
     updateAnteDisplay();
     updateLevelDisplay();
+    updateBlindsVisibility();
+    updateTimerToBreak();
     updateAllUI();
     saveData();
 }
@@ -1049,6 +1060,8 @@ function prevLevel() {
         updateNextLevelOnly();
         updateAnteDisplay();
         updateLevelDisplay();
+        updateBlindsVisibility();
+        updateTimerToBreak();
         updateAllUI();
         saveData();
 
@@ -1063,7 +1076,7 @@ function updateBlinds() {
         mbScore = item.mb;
         bbScore = item.bb;
     }
-    // если перерыв — оставляем прежние значения блайндов
+    // если перерыв — оставляем прежние значения
 }
 
 function updateTimerDisplay() {
@@ -1121,7 +1134,9 @@ function updateNextLevelOnly() {
         return;
     }
 
-    const next = structure[level];
+    // Ищем следующий элемент в структуре
+    const next = structure[level]; // 0-based следующий
+
     if (!next) {
         el.textContent = '—';
         return;
@@ -1131,7 +1146,76 @@ function updateNextLevelOnly() {
         const mins = Math.round(next.duration / 60);
         el.textContent = `Следующий: ПЕРЕРЫВ (${mins} мин)`;
     } else {
-        el.textContent = `Следующий: ${formatBlind(next.mb)} / ${formatBlind(next.bb)}`;
+        const nextLevelNum = getLevelNumber(level) + 1;
+        el.textContent = `Следующий: Уровень ${nextLevelNum} — ${formatBlind(next.mb)} / ${formatBlind(next.bb)}`;
+    }
+}
+
+// ===== ТАЙМЕР ДО ПЕРЕРЫВА =====
+function updateTimerToBreak() {
+    const el = document.getElementById('timerToBreak');
+    if (!el) return;
+
+    const cfg = GAME_MODES[gameMode];
+
+    // Только для турнирных режимов
+    if (!cfg || !cfg.levels) {
+        el.textContent = '';
+        return;
+    }
+
+    // На перерыве — показываем, сколько осталось до конца перерыва
+    if (isBreakLevel(level)) {
+        const m = Math.ceil(timer.totalSeconds / 60);
+        el.textContent = `До конца перерыва: ${m} мин`;
+        return;
+    }
+
+    // На финале — ничего
+    if (isFinalLevel(level)) {
+        el.textContent = '';
+        return;
+    }
+
+    // Ищем ближайший перерыв впереди (не включая текущий уровень)
+    let secondsLeft = timer.totalSeconds;
+    let found = false;
+
+    for (let i = level; i < structure.length; i++) {
+        const it = structure[i];
+        if (it.type === 'break') {
+            found = true;
+            break;
+        }
+        if (it.type === 'level') {
+            secondsLeft += it.duration;
+        }
+        if (it.type === 'final') break;
+    }
+
+    if (!found) {
+        el.textContent = '';
+        return;
+    }
+
+    const mins = Math.ceil(secondsLeft / 60);
+    el.textContent = `До перерыва: ${mins} мин`;
+}
+
+// ===== ВИДИМОСТЬ БЛАЙНДОВ =====
+function updateBlindsVisibility() {
+    const blindsRow = document.getElementById('blindsRow');
+    const breakDisplay = document.getElementById('breakDisplay');
+    const cfg = GAME_MODES[gameMode];
+
+    if (!blindsRow || !breakDisplay) return;
+
+    if (cfg && cfg.levels && isBreakLevel(level)) {
+        blindsRow.classList.add('hidden');
+        breakDisplay.style.display = 'block';
+    } else {
+        blindsRow.classList.remove('hidden');
+        breakDisplay.style.display = 'none';
     }
 }
 
@@ -1141,12 +1225,16 @@ function updateAllUI() {
     updateLevelDisplay();
     updateNextLevelOnly();
     updateAnteDisplay();
+    updateBlindsVisibility();
+    updateTimerToBreak();
     updatePrizePool();
     updateEliminatedList();
     updateTotal();
 
-    document.getElementById('mbScore').textContent = formatBlind(mbScore);
-    document.getElementById('bbScore').textContent = formatBlind(bbScore);
+    const mbEl = document.getElementById('mbScore');
+    const bbEl = document.getElementById('bbScore');
+    if (mbEl) mbEl.textContent = formatBlind(mbScore);
+    if (bbEl) bbEl.textContent = formatBlind(bbScore);
 }
 
 function updateLevelDisplay() {
@@ -1160,13 +1248,13 @@ function updateLevelDisplay() {
 
     const item = getStructureItem(level);
     if (!item) {
-        el.textContent = `Уровень ${level}`;
+        el.textContent = `Уровень ${getLevelNumber(level)}`;
         return;
     }
     if (item.type === 'break') {
         el.textContent = 'ПЕРЕРЫВ';
     } else {
-        el.textContent = `Уровень ${level}`;
+        el.textContent = `Уровень ${getLevelNumber(level)}`;
     }
 }
 
@@ -1254,11 +1342,6 @@ function updateEliminatedList() {
 
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
-
-function formatBlind(num) {
-    if (num === undefined || num === null || num === '') return '';
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 // ===== МЕНЮ =====
@@ -1375,6 +1458,8 @@ function resetAll() {
         updateNextLevelOnly();
         updateTimerDisplay();
         updateProgressBar();
+        updateTimerToBreak();
+        updateBlindsVisibility();
     }
 
     renderTables();
@@ -1394,6 +1479,5 @@ document.addEventListener('keydown', e => {
     }
 });
 
-// Периодическое автосохранение
 setInterval(saveData, 5000);
 window.addEventListener('beforeunload', saveData);

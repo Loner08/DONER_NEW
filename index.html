@@ -61,9 +61,10 @@
                                 stroke-dasharray="848.23" stroke-dashoffset="0"/>
                         </svg>
                         <div class="timer-content">
+                            <div class="timer-to-break" id="timerToBreak"></div>
                             <div class="timer-label">ТАЙМЕР</div>
                             <div class="level-display" id="levelDisplay">Уровень 1</div>
-                            <div class="timer-display" id="timerDisplay">10:00</div>
+                            <div class="timer-display" id="timerDisplay">15:00</div>
                         </div>
                     </div>
                     <div class="timer-controls">
@@ -85,14 +86,14 @@
 
             <div class="divider"></div>
 
-            <div class="blinds-row">
+            <div class="blinds-row" id="blindsRow">
                 <div class="blind-display blind-mb">
                     <span class="blind-label">МБ</span>
                     <span class="blind-value" id="mbScore">100</span>
                 </div>
                 <div class="blind-display blind-bb">
                     <span class="blind-label">ББ</span>
-                    <span class="blind-value" id="bbScore">200</span>
+                    <span class="blind-value" id="bbScore">100</span>
                 </div>
                 <div class="blind-display blind-ante" id="anteBox" style="display:none;">
                     <span class="blind-label">АНТЕ</span>
@@ -100,8 +101,12 @@
                 </div>
             </div>
 
+            <div class="break-display" id="breakDisplay" style="display:none;">
+                ПЕРЕРЫВ
+            </div>
+
             <div class="next-level-only" id="nextLevelOnly">
-                Следующий: 200 / 400
+                Следующий: Уровень 2 — 100 / 200
             </div>
         </div>
 

@@ -28,7 +28,6 @@ body {
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ЛЕВАЯ ПАНЕЛЬ — ФОН С ФОТО */
 .left-panel {
     flex: 5;
     position: relative;
@@ -46,7 +45,6 @@ body {
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Полупрозрачный белый слой поверх фото */
 .left-panel::before {
     content: '';
     position: absolute;
@@ -70,7 +68,6 @@ body {
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
 }
 
-/* ФОКУС НА ТАЙМЕРЕ */
 .main-layout.focus-timer .left-panel { flex: 7; }
 .main-layout.focus-timer .right-panel { flex: 3; }
 
@@ -112,6 +109,17 @@ body {
     pointer-events: none;
     width: 80%;
 }
+
+.timer-to-break {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e67e22;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    min-height: 16px;
+}
+.timer-to-break:empty { display: none; }
+
 .timer-label { font-size: 13px; color: #2c3e50; letter-spacing: 4px; font-weight: 700; }
 .level-display {
     font-size: 18px; font-weight: bold; color: #6c3483;
@@ -144,6 +152,8 @@ body {
 
 /* БЛАЙНДЫ */
 .blinds-row { display: flex; justify-content: center; gap: 20px; margin: 10px 0; flex-wrap: wrap; }
+.blinds-row.hidden { display: none; }
+
 .blind-display {
     display: flex; align-items: center; gap: 16px;
     padding: 14px 26px; border-radius: 16px;
@@ -155,6 +165,17 @@ body {
 .blind-ante { background: linear-gradient(135deg, #16a085, #0e6655); color: white; }
 .blind-label { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
 .blind-value { font-size: 32px; font-weight: bold; min-width: 60px; text-align: center; }
+
+/* Плашка ПЕРЕРЫВ */
+.break-display {
+    text-align: center;
+    font-size: 40px;
+    font-weight: bold;
+    color: #e67e22;
+    letter-spacing: 8px;
+    padding: 20px 0;
+    text-shadow: 0 2px 8px rgba(230, 126, 34, 0.3);
+}
 
 /* Следующий уровень */
 .next-level-only {
@@ -247,7 +268,6 @@ body {
 .album-track { display: flex; transition: transform 0.35s ease; }
 .table-slide { min-width: 100%; padding: 0 4px; }
 
-/* Подсветка стрелок при drag */
 .album-arrow.drag-scroll-active {
     background: #f39c12 !important;
     animation: arrowPulse 0.9s infinite;
@@ -288,7 +308,7 @@ body.touch-drag-active .album-arrow {
     border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 
-/* СЕТКА 3×3 — 9 мест */
+/* СЕТКА 3×3 */
 .buttons-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
 
 .number-btn {
@@ -388,7 +408,22 @@ body.touch-drag-active .album-arrow {
 }
 .table-summary span:last-child { font-weight: bold; color: #2c3e50; }
 
-.table-indicator { text-align: center; font-size: 13px; color: #7f8c8d; font-weight: 600; margin-top: -4px; }
+/* ЗАМЕТНАЯ ПЛАШКА СТОЛА */
+.table-indicator {
+    text-align: center;
+    font-size: 18px;
+    color: #2c3e50;
+    font-weight: bold;
+    margin-top: 2px;
+    padding: 8px 20px;
+    background: linear-gradient(to right, #f8f9fa, #e9ecef);
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    letter-spacing: 0.5px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
 
 /* ВЫБИВШИЕ */
 .eliminated-box {
@@ -730,6 +765,7 @@ body.touch-drag-active .album-arrow {
     .level-display { font-size: 13px; padding: 2px 10px; margin: 2px 0; }
     .progress-ring-circle,
     .progress-ring-bg { stroke-width: 7; }
+    .timer-to-break { font-size: 11px; margin-bottom: 2px; min-height: 13px; }
 
     .timer-controls { gap: 8px; margin-top: 10px; }
     .timer-btn { width: 42px; height: 42px; font-size: 14px; }
@@ -738,6 +774,8 @@ body.touch-drag-active .album-arrow {
     .blind-display { padding: 8px 14px; min-width: 0; flex: 1 1 30%; gap: 8px; }
     .blind-label { font-size: 14px; }
     .blind-value { font-size: 22px; min-width: 36px; }
+
+    .break-display { font-size: 28px; padding: 14px 0; letter-spacing: 5px; }
 
     .next-level-only { font-size: 13px; padding: 8px 16px; }
 
@@ -758,6 +796,8 @@ body.touch-drag-active .album-arrow {
 
     .album-arrow { width: 34px; height: 34px; font-size: 14px; }
     .album-add-remove .album-arrow { width: 30px; height: 30px; font-size: 12px; }
+
+    .table-indicator { font-size: 15px; padding: 6px 14px; }
 
     .sidebar { width: 100%; left: -100%; }
     .imbalance-overlay-content { padding: 28px 22px; }
