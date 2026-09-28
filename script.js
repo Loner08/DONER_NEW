@@ -290,8 +290,9 @@ function updateAnteDisplay() {
 
     if (cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
-        anteScoreEl.textContent = formatBlind(bbScore * 2);
-        anteScore = bbScore * 2;
+        const anteValue = bbScore;   // анте = +ББ
+        anteScoreEl.textContent = '+АНТЕ ' + formatBlind(anteValue);
+        anteScore = anteValue;
     } else {
         anteBox.style.display = 'none';
         anteScore = 0;

@@ -163,7 +163,12 @@ body {
 .blind-mb { background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: white; }
 .blind-bb { background: linear-gradient(135deg, #4a69bd, #1e3799); color: white; }
 .blind-ante { background: linear-gradient(135deg, #16a085, #0e6655); color: white; }
-.blind-label { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+.blind-ante .blind-value {
+    font-size: 22px;
+    min-width: 0;
+    letter-spacing: 1px;
+    font-weight: bold;
+}.blind-label { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
 .blind-value { font-size: 32px; font-weight: bold; min-width: 60px; text-align: center; }
 .ante-hint {font-size: 12px; font-weight: 600; opacity: 0.85; margin-left: 4px; letter-spacing: 1px; padding: 2px 8px; background: rgba(255, 255, 255, 0.25); border-radius: 8px;
 }
