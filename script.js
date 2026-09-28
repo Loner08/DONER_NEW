@@ -10,7 +10,7 @@ function emptyTable() {
 
 let appData = {
     total: 0,
-    tables: [emptyTable(), emptyTable()],
+    tables: [emptyTable()],
     eliminated: []
 };
 
@@ -1428,7 +1428,7 @@ function resetAll() {
 
     appData = {
         total: 0,
-        tables: [emptyTable(), emptyTable()],
+        tables: [emptyTable()],
         eliminated: []
     };
     currentMultiplier = 500;

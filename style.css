@@ -165,6 +165,8 @@ body {
 .blind-ante { background: linear-gradient(135deg, #16a085, #0e6655); color: white; }
 .blind-label { font-size: 22px; font-weight: bold; letter-spacing: 2px; }
 .blind-value { font-size: 32px; font-weight: bold; min-width: 60px; text-align: center; }
+.ante-hint {font-size: 12px; font-weight: 600; opacity: 0.85; margin-left: 4px; letter-spacing: 1px; padding: 2px 8px; background: rgba(255, 255, 255, 0.25); border-radius: 8px;
+}
 
 /* Плашка ПЕРЕРЫВ */
 .break-display {
