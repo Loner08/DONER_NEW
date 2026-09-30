@@ -50,6 +50,7 @@ let fbReady = false;
 let fbStateRef = null;
 let fbUnsubscribe = null;
 let isApplyingRemote = false;
+let lastWriteTs = 0;
 
 // ===== СТРУКТУРА ТУРНИРА =====
 const structure = [
@@ -177,9 +178,7 @@ window.onload = function() {
     } else {
         window.addEventListener('firebase-ready', () => {
             fbReady = true;
-            if (roomCode) {
-                connectToRoom(roomCode);
-            }
+            if (roomCode) connectToRoom(roomCode);
         });
     }
 
@@ -191,7 +190,6 @@ window.onload = function() {
     updateThemeButtons();
     updateRoomUI();
 
-    // Приоритет: URL → localStorage
     const urlRoom = getRoomFromUrl();
     roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
 
@@ -282,9 +280,10 @@ function pushToFirebase() {
     if (!window.fb || !roomCode) return;
     const { db, ref, set } = window.fb;
     const stateRef = ref(db, 'rooms/' + roomCode + '/state');
+    lastWriteTs = Date.now();
     set(stateRef, {
         clientId: clientId,
-        ts: Date.now(),
+        ts: lastWriteTs,
         appData: appData,
         timer: {
             totalSeconds: timer.totalSeconds,
@@ -323,6 +322,9 @@ function connectToRoom(code) {
             return;
         }
         if (data.clientId === clientId) return;
+
+        // Игнорируем устаревшие данные — свои всегда свежее
+        if (data.ts && lastWriteTs && data.ts < lastWriteTs) return;
 
         isApplyingRemote = true;
         try {
@@ -376,6 +378,7 @@ function startTimerLocal() {
             timer.totalSeconds--;
             updateTimerDisplay();
             updateTimerToBreak();
+            saveDataLocalOnly();
         } else {
             nextLevel();
         }
@@ -386,6 +389,8 @@ function stopTimerLocal() {
     timer.running = false;
     if (timer.interval) clearInterval(timer.interval);
     timer.interval = null;
+    const layout = document.querySelector('.main-layout');
+    if (layout) layout.classList.remove('focus-timer');
 }
 
 function updateSyncStatus(status) {
@@ -401,13 +406,12 @@ function updateSyncStatus(status) {
     }
 }
 
-function updateRoomUI() {
+function updateRoomUI(openSidebar = false) {
     const codeEl = document.getElementById('roomCodeDisplay');
     if (codeEl) codeEl.textContent = roomCode || '—';
     const section = document.getElementById('roomSection');
     if (section) section.style.display = roomCode ? 'block' : 'none';
 
-    // Раскрываем секцию "Комната" и открываем сам сайдбар
     if (roomCode) {
         const content = document.getElementById('roomSectionContent');
         if (content) {
@@ -415,8 +419,10 @@ function updateRoomUI() {
             const arrow = content.parentElement.querySelector('.toggle-arrow');
             if (arrow) arrow.style.transform = 'rotate(180deg)';
         }
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) sidebar.classList.add('active');
+        if (openSidebar) {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.classList.add('active');
+        }
     }
 }
 
@@ -427,19 +433,36 @@ function generateRoomCode() {
     return code;
 }
 
+function waitForFirebase() {
+    return new Promise((resolve) => {
+        if (window.fb) { resolve(); return; }
+        const check = setInterval(() => {
+            if (window.fb) {
+                clearInterval(check);
+                resolve();
+            }
+        }, 100);
+        setTimeout(() => {
+            clearInterval(check);
+            if (!window.fb) alert('Firebase не загрузился. Проверьте интернет и обновите страницу.');
+            resolve();
+        }, 10000);
+    });
+}
+
 function createRoom() {
-    if (!fbReady) {
-        alert('Firebase ещё загружается. Подождите пару секунд и попробуйте снова.');
-        return;
-    }
-    const code = generateRoomCode();
-    localStorage.setItem('pokerRoomCode', code);
-    roomCode = code;
-    connectToRoom(code);
-    document.getElementById('roomOverlay').classList.remove('active');
-    updateRoomUI();
-    updateSyncStatus('connecting');
-    pushToFirebase();
+    waitForFirebase().then(() => {
+        if (!window.fb) return;
+        fbReady = true;
+        const code = generateRoomCode();
+        localStorage.setItem('pokerRoomCode', code);
+        roomCode = code;
+        document.getElementById('roomOverlay').classList.remove('active');
+        updateRoomUI(true);
+        updateSyncStatus('connecting');
+        connectToRoom(code);
+        pushToFirebase();
+    });
 }
 
 function openJoinRoom() {
@@ -454,52 +477,53 @@ function closeJoinRoom() {
 }
 
 function joinRoom() {
-    if (!fbReady) {
-        alert('Firebase ещё загружается. Подождите пару секунд и попробуйте снова.');
-        return;
-    }
-    const code = (document.getElementById('roomJoinInput').value || '').trim().toUpperCase();
-    const errEl = document.getElementById('roomJoinError');
+    waitForFirebase().then(() => {
+        if (!window.fb) return;
+        fbReady = true;
 
-    if (code.length !== 6) {
-        errEl.textContent = 'Код должен состоять из 6 символов.';
-        errEl.style.display = 'block';
-        return;
-    }
+        const code = (document.getElementById('roomJoinInput').value || '').trim().toUpperCase();
+        const errEl = document.getElementById('roomJoinError');
 
-    updateSyncStatus('connecting');
-    const { db, ref, onValue } = window.fb;
-    const checkRef = ref(db, 'rooms/' + code + '/state');
-    let resolved = false;
-
-    const unsub = onValue(checkRef, (snapshot) => {
-        if (resolved) return;
-        resolved = true;
-        const data = snapshot.val();
-        if (!data) {
-            errEl.textContent = 'Комната не найдена. Проверьте код.';
+        if (code.length !== 6) {
+            errEl.textContent = 'Код должен состоять из 6 символов.';
             errEl.style.display = 'block';
-            updateSyncStatus('offline');
-            unsub();
             return;
         }
-        unsub();
-        localStorage.setItem('pokerRoomCode', code);
-        roomCode = code;
-        connectToRoom(code);
-        document.getElementById('roomOverlay').classList.remove('active');
-        updateRoomUI();
-    });
 
-    setTimeout(() => {
-        if (!resolved) {
+        updateSyncStatus('connecting');
+        const { db, ref, onValue } = window.fb;
+        const checkRef = ref(db, 'rooms/' + code + '/state');
+        let resolved = false;
+
+        const unsub = onValue(checkRef, (snapshot) => {
+            if (resolved) return;
             resolved = true;
-            try { unsub(); } catch(e) {}
-            errEl.textContent = 'Не удалось подключиться. Проверьте интернет.';
-            errEl.style.display = 'block';
-            updateSyncStatus('offline');
-        }
-    }, 5000);
+            const data = snapshot.val();
+            if (!data) {
+                errEl.textContent = 'Комната не найдена. Проверьте код.';
+                errEl.style.display = 'block';
+                updateSyncStatus('offline');
+                unsub();
+                return;
+            }
+            unsub();
+            localStorage.setItem('pokerRoomCode', code);
+            roomCode = code;
+            document.getElementById('roomOverlay').classList.remove('active');
+            updateRoomUI(true);
+            connectToRoom(code);
+        });
+
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                try { unsub(); } catch(e) {}
+                errEl.textContent = 'Не удалось подключиться. Проверьте интернет.';
+                errEl.style.display = 'block';
+                updateSyncStatus('offline');
+            }
+        }, 5000);
+    });
 }
 
 function copyRoomCode() {
@@ -1176,26 +1200,12 @@ function startTimer() {
     const layout = document.querySelector('.main-layout');
     if (layout) layout.classList.add('focus-timer');
 
-    if (timer.interval) clearInterval(timer.interval);
-    timer.interval = setInterval(() => {
-        if (timer.totalSeconds > 0) {
-            timer.totalSeconds--;
-            updateTimerDisplay();
-            updateTimerToBreak();
-        } else {
-            nextLevel();
-        }
-    }, 1000);
-
+    startTimerLocal();
     saveData();
 }
 
 function stopTimer() {
-    timer.running = false;
-    if (timer.interval) clearInterval(timer.interval);
-    timer.interval = null;
-    const layout = document.querySelector('.main-layout');
-    if (layout) layout.classList.remove('focus-timer');
+    stopTimerLocal();
     saveData();
 }
 
@@ -1203,9 +1213,9 @@ function skipLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
     const wasRunning = timer.running;
-    stopTimer();
+    stopTimerLocal();
     nextLevel();
-    if (wasRunning) startTimer();
+    if (wasRunning && timer.running) startTimerLocal();
 }
 
 function nextLevel() {
@@ -1216,7 +1226,7 @@ function nextLevel() {
         saveData();
         return;
     }
-    if (level >= structure.length) { stopTimer(); return; }
+    if (level >= structure.length) { stopTimerLocal(); saveData(); return; }
 
     level++;
     updateBlinds();
@@ -1225,11 +1235,14 @@ function nextLevel() {
     if (duration === Infinity) {
         timer.totalSeconds = 0;
         timer.maxSeconds = 0;
-        stopTimer();
-    } else {
-        timer.totalSeconds = duration;
-        timer.maxSeconds = duration;
+        stopTimerLocal();
+        updateAllUI();
+        saveData();
+        return;
     }
+
+    timer.totalSeconds = duration;
+    timer.maxSeconds = duration;
 
     updateTimerDisplay();
     updateNextLevelOnly();
@@ -1239,6 +1252,11 @@ function nextLevel() {
     updateTimerToBreak();
     updateAllUI();
     saveData();
+
+    // Перезапускаем локальный таймер, если он был запущен
+    if (timer.running) {
+        startTimerLocal();
+    }
 }
 
 function prevLevel() {
@@ -1246,7 +1264,7 @@ function prevLevel() {
     if (cfg && cfg.levels === false) return;
     if (level > 1) {
         const wasRunning = timer.running;
-        if (wasRunning) stopTimer();
+        if (wasRunning) stopTimerLocal();
         level--;
         updateBlinds();
         const duration = getLevelDuration(level);
@@ -1265,7 +1283,7 @@ function prevLevel() {
         updateTimerToBreak();
         updateAllUI();
         saveData();
-        if (wasRunning) startTimer();
+        if (wasRunning) startTimerLocal();
     }
 }
 
@@ -1559,7 +1577,7 @@ function selectOption(opt) {
 
 // ===== СБРОС =====
 function resetAll() {
-    stopTimer();
+    stopTimerLocal();
     document.querySelector('.main-layout')?.classList.remove('focus-timer');
 
     appData = {
