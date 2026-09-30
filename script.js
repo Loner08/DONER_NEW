@@ -33,12 +33,9 @@ let mbScore = 100;
 let bbScore = 100;
 let anteScore = 0;
 
-let menuExpanded = { prize: true, auto: false, dist: false };
+let menuExpanded = { theme: false, prize: true, auto: false, dist: false };
 
 // ===== СТРУКТУРА ТУРНИРА =====
-// type: 'level' — уровень (mb, bb, duration)
-// type: 'break' — перерыв (duration)
-// type: 'final' — финальный уровень (mb, bb, без таймера)
 const structure = [
     { type: 'level', mb: 100,  bb: 100,   duration: 15 * 60 },
     { type: 'level', mb: 100,  bb: 200,   duration: 15 * 60 },
@@ -103,6 +100,29 @@ const GAME_MODE_NAMES = {
     'cash': 'Кэш'
 };
 
+// ===== ТЕМЫ =====
+function setTheme(name) {
+    const themes = ['vegas', 'casino', 'cyber', 'sport'];
+    if (!themes.includes(name)) return;
+    document.documentElement.setAttribute('data-theme', name);
+    try { localStorage.setItem('pokerTheme', name); } catch(e) {}
+    updateThemeButtons();
+}
+
+function updateThemeButtons() {
+    const current = document.documentElement.getAttribute('data-theme') || 'vegas';
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.themeName === current);
+    });
+}
+
+(function restoreTheme() {
+    try {
+        const saved = localStorage.getItem('pokerTheme');
+        if (saved) document.documentElement.setAttribute('data-theme', saved);
+    } catch(e) {}
+})();
+
 // ===== ВСПОМОГАТЕЛЬНЫЕ =====
 function getStructureItem(levelNumber) {
     return structure[levelNumber - 1] || null;
@@ -125,7 +145,6 @@ function isFinalLevel(levelNumber) {
     return item && item.type === 'final';
 }
 
-// Номер уровня без учёта перерывов (1-based) по индексу в structure
 function getLevelNumber(index) {
     let n = 0;
     for (let i = 0; i < index && i < structure.length; i++) {
@@ -146,6 +165,7 @@ window.onload = function() {
     initializeMenuSections();
     updateAddRemoveButtons();
     checkBalance(true);
+    updateThemeButtons();
 
     if (!gameMode) {
         document.getElementById('gameModeOverlay').classList.add('active');
@@ -291,7 +311,7 @@ function updateAnteDisplay() {
 
     if (cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
-        const anteValue = bbScore;   // анте = +ББ
+        const anteValue = bbScore;
         anteScoreEl.textContent = '+АНТЕ ' + formatBlind(anteValue);
         anteScore = anteValue;
     } else {
@@ -418,7 +438,6 @@ function createSeatButton(ti, si) {
         ? `<span class="btn-table-badge">${ti + 1}</span>`
         : '';
 
-    // Кнопка −1 показывается при count >= 1
     const minusBtn = (name && count >= 1 && !isElim)
         ? `<span class="btn-minus-count" data-table="${ti}" data-seat="${si}" title="Убрать один вход">−1</span>`
         : '';
@@ -477,7 +496,6 @@ function updateSeatCount(ti, si) {
 
 function decrementEntry(ti, si) {
     const table = appData.tables[ti];
-    // Нельзя уменьшить, если 1 — 0 не должен получаться
     if (table.players[si] > 1) {
         table.players[si]--;
         appData.total = Math.max(0, appData.total - 1);
@@ -578,7 +596,6 @@ function beginDrag(e) {
     };
 
     btn.classList.add('dragging');
-
     positionGhost(e.clientX, e.clientY);
 
     document.querySelectorAll('.album-prev, .album-next').forEach(el => {
@@ -590,7 +607,6 @@ function beginDrag(e) {
     }
 
     window.addEventListener('wheel', onDragWheel, { passive: false });
-
     if (navigator.vibrate) navigator.vibrate(15);
 }
 
@@ -696,7 +712,6 @@ function finishDrag(e) {
         pressState = null;
         return;
     }
-
     if (!dragState) { pressState = null; return; }
 
     const targetBtn = dragState.targetEl;
@@ -955,9 +970,7 @@ function updateTableIndicator() {
 function startTimer() {
     if (timer.running) return;
 
-    if (gameMode !== 'cash' && isFinalLevel(level)) {
-        return;
-    }
+    if (gameMode !== 'cash' && isFinalLevel(level)) return;
 
     const info = getImbalanceInfo();
     if (info.imbalanced) { checkBalance(); return; }
@@ -1084,8 +1097,8 @@ function updateTimerDisplay() {
 
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         display.textContent = '—';
-        display.classList.remove('blinking');
-        display.style.color = '#2c3e50';
+        display.classList.remove('blinking', 'danger');
+        display.style.color = '';
         updateProgressBar();
         return;
     }
@@ -1094,12 +1107,11 @@ function updateTimerDisplay() {
     const s = timer.totalSeconds % 60;
     display.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
 
-    if (timer.totalSeconds <= 10 && timer.running) {
-        display.classList.add('blinking');
-        display.style.color = '#e74c3c';
+    // Красный цвет — последние 59 секунд
+    if (timer.totalSeconds <= 59 && timer.running) {
+        display.classList.add('danger');
     } else {
-        display.classList.remove('blinking');
-        display.style.color = '#2c3e50';
+        display.classList.remove('danger');
     }
     updateProgressBar();
 }
@@ -1110,7 +1122,7 @@ function updateProgressBar() {
 
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         circle.style.strokeDashoffset = 0;
-        circle.style.stroke = '#9b59b6';
+        circle.style.stroke = 'var(--accent-secondary)';
         return;
     }
 
@@ -1118,9 +1130,13 @@ function updateProgressBar() {
     const circ = 2 * Math.PI * r;
     const progress = timer.maxSeconds > 0 ? timer.totalSeconds / timer.maxSeconds : 0;
     circle.style.strokeDashoffset = circ * (1 - progress);
-    if (progress <= 0.1) circle.style.stroke = '#e74c3c';
-    else if (progress <= 0.3) circle.style.stroke = '#f39c12';
-    else circle.style.stroke = '#2ecc71';
+
+    // При последних 59 сек меняем цвет кольца на красный, иначе — на var
+    if (timer.totalSeconds <= 59 && timer.running) {
+        circle.style.stroke = 'var(--accent-danger)';
+    } else {
+        circle.style.stroke = 'var(--timer-progress)';
+    }
 }
 
 // ===== СЛЕДУЮЩИЙ УРОВЕНЬ =====
@@ -1437,7 +1453,7 @@ function resetAll() {
     const custom = document.getElementById('customMultiplier');
     if (custom) custom.value = '';
 
-    menuExpanded = { prize: true, auto: false, dist: false };
+    menuExpanded = { theme: false, prize: true, auto: false, dist: false };
     closeBalanceOverlay();
 
     if (gameMode) {
