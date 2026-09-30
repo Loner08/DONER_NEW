@@ -180,9 +180,10 @@ function formatBlind(num) {
 
 // ===== СТАРТ =====
 window.onload = function() {
-    // Определяем роль из URL
+    // Определяем роль
     const params = new URLSearchParams(location.search);
     const roleParam = params.get('role');
+
     if (roleParam === 'dealer') {
         isDealer = true;
         localStorage.setItem('pokerRole', 'dealer');
@@ -194,11 +195,12 @@ window.onload = function() {
         isDealer = localStorage.getItem('pokerRole') === 'dealer';
     }
 
-    if (isDealer) {
-        document.body.classList.add('role-dealer');
-        document.getElementById('dealerTopbar').style.display = 'flex';
-    }
+    // Проверяем, есть ли комната
+    const urlRoom = getRoomFromUrl();
+    const savedRoom = localStorage.getItem('pokerRoomCode');
+    const hasRoom = !!(urlRoom || savedRoom);
 
+    // Firebase инициализация
     if (window.fb) {
         fbReady = true;
     } else {
@@ -211,8 +213,8 @@ window.onload = function() {
     loadData();
     restoreTimerAfterReload();
 
-    const urlRoom = getRoomFromUrl();
-    roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
+    // Устанавливаем комнату
+    roomCode = urlRoom || savedRoom || null;
     if (roomCode) localStorage.setItem('pokerRoomCode', roomCode);
 
     renderTables();
@@ -222,17 +224,33 @@ window.onload = function() {
     updateThemeButtons();
     updateRoomUI();
 
+    // Дилер без комнаты — показываем оверлей с формой ввода кода
+    if (isDealer && !roomCode) {
+        document.body.classList.add('role-dealer');
+        const topbar = document.getElementById('dealerTopbar');
+        if (topbar) topbar.style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('roomOverlay').classList.add('active');
+            openJoinRoom();
+        }, 200);
+        updateAllUI();
+        return;
+    }
+
+    // Дилер с комнатой — сразу включаем дилерский интерфейс
+    if (isDealer && roomCode) {
+        document.body.classList.add('role-dealer');
+        const topbar = document.getElementById('dealerTopbar');
+        if (topbar) topbar.style.display = 'flex';
+    }
+
+    // Подключение к Firebase
     if (roomCode && fbReady) {
         connectToRoom(roomCode);
     }
 
-    // Оверлей выбора комнаты — только для хоста
+    // Оверлей выбора комнаты — если её нет и мы не дилер
     if (!roomCode && !isDealer) {
-        setTimeout(() => {
-            document.getElementById('roomOverlay').classList.add('active');
-        }, 200);
-    } else if (!roomCode && isDealer) {
-        // Дилера без комнаты — сразу в оверлей
         setTimeout(() => {
             document.getElementById('roomOverlay').classList.add('active');
         }, 200);
@@ -635,9 +653,87 @@ function createRoom() {
     });
 }
 
-function openJoinRoom() {}
-function closeJoinRoom() {}
-function joinRoom() {}
+function openJoinRoom() {
+    document.getElementById('roomJoinForm').style.display = 'flex';
+    document.getElementById('roomJoinError').style.display = 'none';
+    document.getElementById('roomJoinInput').value = '';
+    setTimeout(() => document.getElementById('roomJoinInput').focus(), 100);
+}
+
+function closeJoinRoom() {
+    document.getElementById('roomJoinForm').style.display = 'none';
+}
+
+// Присоединение дилера по введённому коду
+function joinRoomAsDealer() {
+    waitForFirebase().then(() => {
+        if (!window.fb) return;
+        fbReady = true;
+
+        const code = (document.getElementById('roomJoinInput').value || '').trim().toUpperCase();
+        const errEl = document.getElementById('roomJoinError');
+
+        if (code.length !== 6) {
+            errEl.textContent = 'Код должен состоять из 6 символов.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        updateSyncStatus('connecting');
+        const { db, ref, onValue } = window.fb;
+        const checkRef = ref(db, 'rooms/' + code + '/state');
+        let resolved = false;
+
+        const unsub = onValue(checkRef, (snapshot) => {
+            if (resolved) return;
+            resolved = true;
+            const data = snapshot.val();
+            if (!data) {
+                errEl.textContent = 'Комната не найдена. Проверьте код.';
+                errEl.style.display = 'block';
+                updateSyncStatus('offline');
+                unsub();
+                return;
+            }
+            unsub();
+
+            // Сохраняем как дилер
+            localStorage.setItem('pokerRoomCode', code);
+            localStorage.setItem('pokerRole', 'dealer');
+            roomCode = code;
+            isDealer = true;
+
+            // Переключаем интерфейс на дилерский
+            document.body.classList.add('role-dealer');
+            const topbar = document.getElementById('dealerTopbar');
+            if (topbar) topbar.style.display = 'flex';
+
+            // Скрываем оверлеи
+            document.getElementById('roomOverlay').classList.remove('active');
+            const gameOverlay = document.getElementById('gameModeOverlay');
+            if (gameOverlay) gameOverlay.classList.remove('active');
+
+            updateRoomUI(true);
+            connectToRoom(code);
+            updateAllUI();
+        });
+
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                try { unsub(); } catch(e) {}
+                errEl.textContent = 'Не удалось подключиться. Проверьте интернет.';
+                errEl.style.display = 'block';
+                updateSyncStatus('offline');
+            }
+        }, 5000);
+    });
+}
+
+function copyRoomCode() {
+    // устаревшая, оставлена для совместимости
+    copyRoomCodeOnly();
+}
 
 function copyDealerLink() {
     if (!roomCode) return;
