@@ -33,7 +33,23 @@ let mbScore = 100;
 let bbScore = 100;
 let anteScore = 0;
 
-let menuExpanded = { theme: false, prize: true, auto: false, dist: false };
+let menuExpanded = { room: true, theme: false, prize: true, auto: false, dist: false };
+
+// ===== СИНХРОНИЗАЦИЯ =====
+let clientId = (function() {
+    let id = localStorage.getItem('pokerClientId');
+    if (!id) {
+        id = 'c_' + Math.random().toString(36).slice(2, 11) + '_' + Date.now();
+        try { localStorage.setItem('pokerClientId', id); } catch(e) {}
+    }
+    return id;
+})();
+
+let roomCode = null;
+let fbReady = false;
+let fbStateRef = null;
+let fbUnsubscribe = null;
+let isApplyingRemote = false;
 
 // ===== СТРУКТУРА ТУРНИРА =====
 const structure = [
@@ -107,6 +123,7 @@ function setTheme(name) {
     document.documentElement.setAttribute('data-theme', name);
     try { localStorage.setItem('pokerTheme', name); } catch(e) {}
     updateThemeButtons();
+    saveData();
 }
 
 function updateThemeButtons() {
@@ -127,24 +144,20 @@ function updateThemeButtons() {
 function getStructureItem(levelNumber) {
     return structure[levelNumber - 1] || null;
 }
-
 function getLevelDuration(levelNumber) {
     const item = getStructureItem(levelNumber);
     if (!item) return 15 * 60;
     if (item.type === 'final') return Infinity;
     return item.duration;
 }
-
 function isBreakLevel(levelNumber) {
     const item = getStructureItem(levelNumber);
     return item && item.type === 'break';
 }
-
 function isFinalLevel(levelNumber) {
     const item = getStructureItem(levelNumber);
     return item && item.type === 'final';
 }
-
 function getLevelNumber(index) {
     let n = 0;
     for (let i = 0; i < index && i < structure.length; i++) {
@@ -152,7 +165,6 @@ function getLevelNumber(index) {
     }
     return n;
 }
-
 function formatBlind(num) {
     if (num === undefined || num === null || num === '') return '';
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -160,12 +172,37 @@ function formatBlind(num) {
 
 // ===== СТАРТ =====
 window.onload = function() {
+    if (window.fb) {
+        fbReady = true;
+    } else {
+        window.addEventListener('firebase-ready', () => {
+            fbReady = true;
+            if (roomCode) {
+                connectToRoom(roomCode);
+            }
+        });
+    }
+
     loadData();
     renderTables();
     initializeMenuSections();
     updateAddRemoveButtons();
     checkBalance(true);
     updateThemeButtons();
+    updateRoomUI();
+
+    // Приоритет: URL → localStorage
+    const urlRoom = getRoomFromUrl();
+    roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
+
+    if (!roomCode) {
+        setTimeout(() => {
+            document.getElementById('roomOverlay').classList.add('active');
+        }, 200);
+    } else {
+        localStorage.setItem('pokerRoomCode', roomCode);
+        if (fbReady) connectToRoom(roomCode);
+    }
 
     if (!gameMode) {
         document.getElementById('gameModeOverlay').classList.add('active');
@@ -183,7 +220,6 @@ function loadData() {
             const d = JSON.parse(saved);
             if (d.appData) {
                 appData = d.appData;
-
                 appData.tables = (appData.tables || []).map(t => {
                     const players = (t.players || []).slice(0, SEATS_PER_TABLE);
                     const names = (t.names || []).slice(0, SEATS_PER_TABLE);
@@ -191,11 +227,7 @@ function loadData() {
                     while (names.length < SEATS_PER_TABLE) names.push('');
                     return { players, names };
                 });
-
-                if (appData.tables.length < 1) {
-                    appData.tables.push(emptyTable());
-                }
-
+                if (appData.tables.length < 1) appData.tables.push(emptyTable());
                 appData.eliminated = (appData.eliminated || []).map(e => {
                     if (typeof e === 'string') return { name: e, order: 0, tableNumber: 0 };
                     return {
@@ -205,25 +237,21 @@ function loadData() {
                     };
                 });
             }
-
             if (d.timer) {
                 timer.totalSeconds = d.timer.totalSeconds ?? 15 * 60;
                 timer.maxSeconds = d.timer.maxSeconds ?? 15 * 60;
             }
             timer.running = false;
             timer.interval = null;
-
             level = Math.min(Math.max(1, d.level || 1), structure.length);
             mbScore = d.mbScore || 100;
             bbScore = d.bbScore || 100;
             anteScore = d.anteScore || 0;
-
             currentMultiplier = d.currentMultiplier || 500;
             currentOption = d.currentOption || 2;
             deductTenPercent = d.deductTenPercent || false;
             menuExpanded = d.menuExpanded || menuExpanded;
             gameMode = d.gameMode || null;
-
             const cb = document.getElementById('deductTenPercent');
             if (cb) cb.checked = deductTenPercent;
         }
@@ -231,18 +259,281 @@ function loadData() {
 }
 
 function saveData() {
+    saveDataLocalOnly();
+    if (fbReady && roomCode && !isApplyingRemote) {
+        pushToFirebase();
+    }
+}
+
+function saveDataLocalOnly() {
     try {
         localStorage.setItem('pokerTimerData', JSON.stringify({
             appData,
-            timer: {
-                totalSeconds: timer.totalSeconds,
-                maxSeconds: timer.maxSeconds
-            },
+            timer: { totalSeconds: timer.totalSeconds, maxSeconds: timer.maxSeconds },
             level, mbScore, bbScore, anteScore,
             currentMultiplier, currentOption, deductTenPercent, menuExpanded,
             gameMode
         }));
     } catch(e) {}
+}
+
+// ===== СИНХРОНИЗАЦИЯ С FIREBASE =====
+function pushToFirebase() {
+    if (!window.fb || !roomCode) return;
+    const { db, ref, set } = window.fb;
+    const stateRef = ref(db, 'rooms/' + roomCode + '/state');
+    set(stateRef, {
+        clientId: clientId,
+        ts: Date.now(),
+        appData: appData,
+        timer: {
+            totalSeconds: timer.totalSeconds,
+            maxSeconds: timer.maxSeconds,
+            running: timer.running
+        },
+        level: level,
+        mbScore: mbScore,
+        bbScore: bbScore,
+        anteScore: anteScore,
+        gameMode: gameMode,
+        theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+    }).catch(err => {
+        console.warn('Firebase write error:', err);
+        updateSyncStatus('offline');
+    });
+}
+
+function connectToRoom(code) {
+    if (!window.fb) return;
+    const { db, ref, onValue } = window.fb;
+
+    if (fbUnsubscribe) {
+        try { fbUnsubscribe(); } catch(e) {}
+        fbUnsubscribe = null;
+    }
+
+    fbStateRef = ref(db, 'rooms/' + code + '/state');
+
+    fbUnsubscribe = onValue(fbStateRef, (snapshot) => {
+        const data = snapshot.val();
+        updateSyncStatus('online');
+
+        if (!data) {
+            pushToFirebase();
+            return;
+        }
+        if (data.clientId === clientId) return;
+
+        isApplyingRemote = true;
+        try {
+            applyRemoteState(data);
+        } finally {
+            isApplyingRemote = false;
+        }
+    }, (error) => {
+        console.warn('Firebase listen error:', error);
+        updateSyncStatus('offline');
+    });
+}
+
+function applyRemoteState(data) {
+    if (!data) return;
+
+    if (data.appData) appData = data.appData;
+
+    if (data.timer) {
+        timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
+        timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
+        const wasRunning = timer.running;
+        timer.running = !!data.timer.running;
+        if (timer.running && !wasRunning) startTimerLocal();
+        else if (!timer.running && wasRunning) stopTimerLocal();
+    }
+
+    if (typeof data.level === 'number') level = data.level;
+    if (typeof data.mbScore === 'number') mbScore = data.mbScore;
+    if (typeof data.bbScore === 'number') bbScore = data.bbScore;
+    if (typeof data.anteScore === 'number') anteScore = data.anteScore;
+    if (typeof data.gameMode === 'string') gameMode = data.gameMode;
+
+    if (data.theme) {
+        document.documentElement.setAttribute('data-theme', data.theme);
+        try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
+        updateThemeButtons();
+    }
+
+    renderTables();
+    updateModeSwitchLabel();
+    updateAllUI();
+    saveDataLocalOnly();
+}
+
+function startTimerLocal() {
+    if (timer.interval) clearInterval(timer.interval);
+    timer.running = true;
+    timer.interval = setInterval(() => {
+        if (timer.totalSeconds > 0) {
+            timer.totalSeconds--;
+            updateTimerDisplay();
+            updateTimerToBreak();
+        } else {
+            nextLevel();
+        }
+    }, 1000);
+}
+
+function stopTimerLocal() {
+    timer.running = false;
+    if (timer.interval) clearInterval(timer.interval);
+    timer.interval = null;
+}
+
+function updateSyncStatus(status) {
+    const dot = document.getElementById('syncDot');
+    const text = document.getElementById('syncText');
+    if (!dot || !text) return;
+    dot.classList.remove('online', 'offline', 'connecting');
+    switch (status) {
+        case 'online': dot.classList.add('online'); text.textContent = 'Синхронизировано'; break;
+        case 'offline': dot.classList.add('offline'); text.textContent = 'Нет связи'; break;
+        case 'connecting': dot.classList.add('connecting'); text.textContent = 'Подключение…'; break;
+        default: text.textContent = 'Не подключено';
+    }
+}
+
+function updateRoomUI() {
+    const codeEl = document.getElementById('roomCodeDisplay');
+    if (codeEl) codeEl.textContent = roomCode || '—';
+    const section = document.getElementById('roomSection');
+    if (section) section.style.display = roomCode ? 'block' : 'none';
+}
+
+function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+}
+
+function createRoom() {
+    if (!fbReady) {
+        alert('Firebase ещё загружается. Подождите пару секунд и попробуйте снова.');
+        return;
+    }
+    const code = generateRoomCode();
+    localStorage.setItem('pokerRoomCode', code);
+    roomCode = code;
+    connectToRoom(code);
+    document.getElementById('roomOverlay').classList.remove('active');
+    updateRoomUI();
+    updateSyncStatus('connecting');
+    pushToFirebase();
+}
+
+function openJoinRoom() {
+    document.getElementById('roomJoinForm').style.display = 'flex';
+    document.getElementById('roomJoinError').style.display = 'none';
+    document.getElementById('roomJoinInput').value = '';
+    setTimeout(() => document.getElementById('roomJoinInput').focus(), 100);
+}
+
+function closeJoinRoom() {
+    document.getElementById('roomJoinForm').style.display = 'none';
+}
+
+function joinRoom() {
+    if (!fbReady) {
+        alert('Firebase ещё загружается. Подождите пару секунд и попробуйте снова.');
+        return;
+    }
+    const code = (document.getElementById('roomJoinInput').value || '').trim().toUpperCase();
+    const errEl = document.getElementById('roomJoinError');
+
+    if (code.length !== 6) {
+        errEl.textContent = 'Код должен состоять из 6 символов.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    updateSyncStatus('connecting');
+    const { db, ref, onValue } = window.fb;
+    const checkRef = ref(db, 'rooms/' + code + '/state');
+    let resolved = false;
+
+    const unsub = onValue(checkRef, (snapshot) => {
+        if (resolved) return;
+        resolved = true;
+        const data = snapshot.val();
+        if (!data) {
+            errEl.textContent = 'Комната не найдена. Проверьте код.';
+            errEl.style.display = 'block';
+            updateSyncStatus('offline');
+            unsub();
+            return;
+        }
+        unsub();
+        localStorage.setItem('pokerRoomCode', code);
+        roomCode = code;
+        connectToRoom(code);
+        document.getElementById('roomOverlay').classList.remove('active');
+        updateRoomUI();
+    });
+
+    setTimeout(() => {
+        if (!resolved) {
+            resolved = true;
+            try { unsub(); } catch(e) {}
+            errEl.textContent = 'Не удалось подключиться. Проверьте интернет.';
+            errEl.style.display = 'block';
+            updateSyncStatus('offline');
+        }
+    }, 5000);
+}
+
+function copyRoomCode() {
+    if (!roomCode) return;
+    const fullUrl = location.origin + location.pathname + '?room=' + roomCode;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(fullUrl).then(() => {
+            const btn = event && event.target ? event.target.closest('.room-copy-btn') : null;
+            if (btn) {
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Скопировано';
+                setTimeout(() => btn.innerHTML = original, 2000);
+            }
+        });
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = fullUrl;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+    }
+}
+
+function leaveRoom() {
+    if (!confirm('Выйти из комнаты? Данные останутся в облаке, но локально продолжат работать отдельно.')) return;
+    if (fbUnsubscribe) {
+        try { fbUnsubscribe(); } catch(e) {}
+        fbUnsubscribe = null;
+    }
+    fbStateRef = null;
+    localStorage.removeItem('pokerRoomCode');
+    roomCode = null;
+    updateRoomUI();
+    updateSyncStatus('offline');
+}
+
+function skipRoom() {
+    document.getElementById('roomOverlay').classList.remove('active');
+    updateSyncStatus('offline');
+}
+
+function getRoomFromUrl() {
+    const params = new URLSearchParams(location.search);
+    const room = params.get('room');
+    return room ? room.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) : null;
 }
 
 // ===== РЕЖИМ ИГРЫ =====
@@ -302,12 +593,8 @@ function updateAnteDisplay() {
     const anteBox = document.getElementById('anteBox');
     const anteScoreEl = document.getElementById('anteScore');
     if (!anteBox || !anteScoreEl) return;
-
     const cfg = GAME_MODES[gameMode];
-    if (!cfg) {
-        anteBox.style.display = 'none';
-        return;
-    }
+    if (!cfg) { anteBox.style.display = 'none'; return; }
 
     if (cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level)) {
         anteBox.style.display = 'flex';
@@ -333,25 +620,17 @@ function addTable() {
 
 function removeTable() {
     if (appData.tables.length <= 1) return;
-
     const removedIndex = currentTableIndex;
     const table = appData.tables[removedIndex];
-
     const activeNames = table.names.filter(n =>
         n && !appData.eliminated.some(e => e.name === n)
     );
-
     if (activeNames.length > 0) {
         alert(`Нельзя удалить стол: в нём ${activeNames.length} активных игроков. Сначала выбейте их или перенесите в другой стол.`);
         return;
     }
-
     appData.tables.splice(removedIndex, 1);
-
-    if (currentTableIndex >= appData.tables.length) {
-        currentTableIndex = appData.tables.length - 1;
-    }
-
+    if (currentTableIndex >= appData.tables.length) currentTableIndex = appData.tables.length - 1;
     renderTables();
     updateAddRemoveButtons();
     updateTableIndicator();
@@ -378,7 +657,6 @@ function updateAddRemoveButtons() {
 function renderTables() {
     const track = document.getElementById('albumTrack');
     if (!track) return;
-
     const imbalanceInfo = getImbalanceInfo();
     track.innerHTML = '';
 
@@ -433,11 +711,7 @@ function createSeatButton(ti, si) {
     if (isElim) btn.classList.add('eliminated');
 
     const displayName = name || (si + 1);
-
-    const tableBadge = name
-        ? `<span class="btn-table-badge">${ti + 1}</span>`
-        : '';
-
+    const tableBadge = name ? `<span class="btn-table-badge">${ti + 1}</span>` : '';
     const minusBtn = (name && count >= 1 && !isElim)
         ? `<span class="btn-minus-count" data-table="${ti}" data-seat="${si}" title="Убрать один вход">−1</span>`
         : '';
@@ -455,28 +729,15 @@ function createSeatButton(ti, si) {
     btn.addEventListener('click', (e) => {
         if (e.target.classList.contains('btn-delete')) return;
         if (e.target.classList.contains('btn-minus-count')) return;
-        if (justDragged) {
-            justDragged = false;
-            return;
-        }
+        if (justDragged) { justDragged = false; return; }
         handleSeatClick(ti, si);
     });
 
     const del = btn.querySelector('.btn-delete');
-    if (del) {
-        del.addEventListener('click', (e) => {
-            e.stopPropagation();
-            eliminatePlayer(ti, si);
-        });
-    }
+    if (del) del.addEventListener('click', (e) => { e.stopPropagation(); eliminatePlayer(ti, si); });
 
     const minus = btn.querySelector('.btn-minus-count');
-    if (minus) {
-        minus.addEventListener('click', (e) => {
-            e.stopPropagation();
-            decrementEntry(ti, si);
-        });
-    }
+    if (minus) minus.addEventListener('click', (e) => { e.stopPropagation(); decrementEntry(ti, si); });
 
     return btn;
 }
@@ -487,11 +748,8 @@ function updateSeatCount(ti, si) {
     if (!btn) return;
     const countEl = btn.querySelector('.btn-count');
     if (countEl) countEl.textContent = count;
-
     const minus = btn.querySelector('.btn-minus-count');
-    if (!minus && count >= 1) {
-        renderTables();
-    }
+    if (!minus && count >= 1) renderTables();
 }
 
 function decrementEntry(ti, si) {
@@ -519,7 +777,6 @@ const AUTO_SCROLL_INTERVAL = 350;
 
 function attachDragHandlers(btn, ti, si, name, isElim) {
     if (!name || isElim) return;
-
     btn.style.cursor = 'grab';
 
     btn.addEventListener('pointerdown', (e) => {
@@ -529,13 +786,11 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
 
         pressState = {
             btn, ti, si, name,
-            startX: e.clientX,
-            startY: e.clientY,
+            startX: e.clientX, startY: e.clientY,
             pointerId: e.pointerId,
             pointerType: e.pointerType,
             isDragging: false
         };
-
         try { btn.setPointerCapture(e.pointerId); } catch (err) {}
     });
 
@@ -546,10 +801,7 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
         if (!pressState.isDragging) {
             const dx = Math.abs(e.clientX - pressState.startX);
             const dy = Math.abs(e.clientY - pressState.startY);
-            const threshold = pressState.pointerType === 'touch'
-                ? MOVE_THRESHOLD_TOUCH
-                : MOVE_THRESHOLD_MOUSE;
-
+            const threshold = pressState.pointerType === 'touch' ? MOVE_THRESHOLD_TOUCH : MOVE_THRESHOLD_MOUSE;
             if (dx > threshold || dy > threshold) beginDrag(e);
             return;
         }
@@ -564,21 +816,16 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
         if (e.pointerId !== pressState?.pointerId) return;
         finishDrag(e);
     });
-
     btn.addEventListener('pointercancel', (e) => {
         if (e.pointerId !== pressState?.pointerId) return;
         finishDrag(e);
     });
-
-    btn.addEventListener('contextmenu', (e) => {
-        if (pressState?.isDragging) e.preventDefault();
-    });
+    btn.addEventListener('contextmenu', (e) => { if (pressState?.isDragging) e.preventDefault(); });
 }
 
 function beginDrag(e) {
     if (!pressState) return;
     pressState.isDragging = true;
-
     const { btn, ti, si, name } = pressState;
 
     const ghost = document.createElement('div');
@@ -587,8 +834,7 @@ function beginDrag(e) {
     document.body.appendChild(ghost);
 
     dragState = {
-        ti, si,
-        ghost,
+        ti, si, ghost,
         sourceEl: btn,
         targetEl: null,
         pointerId: e.pointerId,
@@ -598,14 +844,8 @@ function beginDrag(e) {
     btn.classList.add('dragging');
     positionGhost(e.clientX, e.clientY);
 
-    document.querySelectorAll('.album-prev, .album-next').forEach(el => {
-        el.classList.add('drag-scroll-active');
-    });
-
-    if (pressState.pointerType === 'touch') {
-        document.body.classList.add('touch-drag-active');
-    }
-
+    document.querySelectorAll('.album-prev, .album-next').forEach(el => el.classList.add('drag-scroll-active'));
+    if (pressState.pointerType === 'touch') document.body.classList.add('touch-drag-active');
     window.addEventListener('wheel', onDragWheel, { passive: false });
     if (navigator.vibrate) navigator.vibrate(15);
 }
@@ -618,7 +858,6 @@ function positionGhost(x, y) {
 
 function highlightTargetUnder(x, y) {
     if (!dragState) return;
-
     const ghost = dragState.ghost;
     const prevDisplay = ghost.style.display;
     ghost.style.display = 'none';
@@ -632,7 +871,6 @@ function highlightTargetUnder(x, y) {
         const oldCard = dragState.targetEl.closest('.table-card');
         if (oldCard) oldCard.classList.remove('drag-target');
     }
-
     if (targetBtn && targetBtn !== dragState.sourceEl) {
         targetBtn.classList.add('drag-over');
         dragState.targetEl = targetBtn;
@@ -645,11 +883,9 @@ function highlightTargetUnder(x, y) {
 
 function handleEdgeAutoScroll(clientX) {
     if (!dragState) return;
-
     const w = window.innerWidth;
     const prevBtn = document.querySelector('.album-prev');
     const nextBtn = document.querySelector('.album-next');
-
     let zone = null;
 
     if (prevBtn && currentTableIndex > 0) {
@@ -669,26 +905,18 @@ function handleEdgeAutoScroll(clientX) {
     if (zone) {
         if (autoScrollTimer && autoScrollTimer._zone === zone) return;
         if (autoScrollTimer) clearInterval(autoScrollTimer);
-
         const step = () => {
             if (zone === 'prev' && currentTableIndex > 0) {
-                currentTableIndex--;
-                updateAlbumPosition();
-                updateTableIndicator();
+                currentTableIndex--; updateAlbumPosition(); updateTableIndicator();
             } else if (zone === 'next' && currentTableIndex < appData.tables.length - 1) {
-                currentTableIndex++;
-                updateAlbumPosition();
-                updateTableIndicator();
+                currentTableIndex++; updateAlbumPosition(); updateTableIndicator();
             }
         };
         step();
         autoScrollTimer = setInterval(step, AUTO_SCROLL_INTERVAL);
         autoScrollTimer._zone = zone;
     } else {
-        if (autoScrollTimer) {
-            clearInterval(autoScrollTimer);
-            autoScrollTimer = null;
-        }
+        if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
     }
 }
 
@@ -696,22 +924,15 @@ function onDragWheel(e) {
     if (!dragState) return;
     e.preventDefault();
     if (e.deltaY > 0 && currentTableIndex < appData.tables.length - 1) {
-        currentTableIndex++;
-        updateAlbumPosition();
-        updateTableIndicator();
+        currentTableIndex++; updateAlbumPosition(); updateTableIndicator();
     } else if (e.deltaY < 0 && currentTableIndex > 0) {
-        currentTableIndex--;
-        updateAlbumPosition();
-        updateTableIndicator();
+        currentTableIndex--; updateAlbumPosition(); updateTableIndicator();
     }
 }
 
 function finishDrag(e) {
     if (!pressState) return;
-    if (!pressState.isDragging) {
-        pressState = null;
-        return;
-    }
+    if (!pressState.isDragging) { pressState = null; return; }
     if (!dragState) { pressState = null; return; }
 
     const targetBtn = dragState.targetEl;
@@ -719,15 +940,11 @@ function finishDrag(e) {
     const srcTi = dragState.ti;
     const srcSi = dragState.si;
 
-    if (srcEl) {
-        try { srcEl.releasePointerCapture(pressState.pointerId); } catch (err) {}
-    }
+    if (srcEl) try { srcEl.releasePointerCapture(pressState.pointerId); } catch (err) {}
 
     document.querySelectorAll('.number-btn.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.table-card.drag-target').forEach(el => el.classList.remove('drag-target'));
-    if (dragState.ghost && dragState.ghost.parentNode) {
-        dragState.ghost.parentNode.removeChild(dragState.ghost);
-    }
+    if (dragState.ghost && dragState.ghost.parentNode) dragState.ghost.parentNode.removeChild(dragState.ghost);
     if (srcEl) srcEl.classList.remove('dragging');
 
     document.querySelectorAll('.album-arrow.drag-scroll-active, .album-arrow.drag-scroll-hover')
@@ -735,11 +952,7 @@ function finishDrag(e) {
 
     window.removeEventListener('wheel', onDragWheel);
     document.body.classList.remove('touch-drag-active');
-
-    if (autoScrollTimer) {
-        clearInterval(autoScrollTimer);
-        autoScrollTimer = null;
-    }
+    if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
 
     dragState = null;
     pressState = null;
@@ -747,9 +960,7 @@ function finishDrag(e) {
     if (targetBtn) {
         const targetTi = +targetBtn.dataset.table;
         const targetSi = +targetBtn.dataset.seat;
-        if (!(srcTi === targetTi && srcSi === targetSi)) {
-            performMove(srcTi, srcSi, targetTi, targetSi);
-        }
+        if (!(srcTi === targetTi && srcSi === targetSi)) performMove(srcTi, srcSi, targetTi, targetSi);
     }
 
     justDragged = true;
@@ -759,7 +970,6 @@ function finishDrag(e) {
 function performMove(srcTi, srcSi, targetTi, targetSi) {
     const srcTable = appData.tables[srcTi];
     const tgtTable = appData.tables[targetTi];
-
     const srcName = srcTable.names[srcSi];
     const srcCount = srcTable.players[srcSi];
     const tgtName = tgtTable.names[targetSi];
@@ -805,11 +1015,9 @@ function handleSeatClick(ti, si) {
 
     table.players[si]++;
     appData.total++;
-
     updateSeatCount(ti, si);
     updateTotal();
     updatePrizePool();
-
     saveData();
 }
 
@@ -819,7 +1027,6 @@ function confirmPlayerName() {
     const input = document.getElementById('playerNameInput');
 
     if (!name) { closeNameModal(); return; }
-
     if (isNameTaken(name)) {
         err.textContent = `Имя "${name}" уже занято другим игроком.`;
         err.style.display = 'block';
@@ -872,12 +1079,7 @@ function eliminatePlayer(ti, si) {
         const totalUnique = countAllUniquePlayers();
         const eliminatedSoFar = appData.eliminated.length;
         const order = Math.max(1, totalUnique - eliminatedSoFar);
-
-        appData.eliminated.push({
-            name,
-            order: order,
-            tableNumber: ti + 1
-        });
+        appData.eliminated.push({ name, order, tableNumber: ti + 1 });
     }
 
     renderTables();
@@ -888,14 +1090,8 @@ function eliminatePlayer(ti, si) {
 
 function countAllUniquePlayers() {
     const set = new Set();
-    for (const t of appData.tables) {
-        for (const n of t.names) {
-            if (n) set.add(n.toLowerCase());
-        }
-    }
-    for (const e of appData.eliminated) {
-        if (e.name) set.add(e.name.toLowerCase());
-    }
+    for (const t of appData.tables) for (const n of t.names) if (n) set.add(n.toLowerCase());
+    for (const e of appData.eliminated) if (e.name) set.add(e.name.toLowerCase());
     return set.size;
 }
 
@@ -908,18 +1104,13 @@ function getActiveCounts() {
 
 function getImbalanceInfo() {
     const counts = getActiveCounts();
-    if (counts.length === 0) {
-        return { counts, diff: 0, imbalanced: false, overloadedTables: [] };
-    }
+    if (counts.length === 0) return { counts, diff: 0, imbalanced: false, overloadedTables: [] };
     const max = Math.max(...counts);
     const min = Math.min(...counts);
     const diff = max - min;
     const imbalanced = diff >= 2;
-
     const overloadedTables = [];
-    if (imbalanced) {
-        counts.forEach((c, i) => { if (c === max) overloadedTables.push(i); });
-    }
+    if (imbalanced) counts.forEach((c, i) => { if (c === max) overloadedTables.push(i); });
     return { counts, diff, imbalanced, overloadedTables };
 }
 
@@ -949,16 +1140,12 @@ function updateAlbumPosition() {
 }
 function nextTable() {
     if (currentTableIndex < appData.tables.length - 1) {
-        currentTableIndex++;
-        updateAlbumPosition();
-        updateTableIndicator();
+        currentTableIndex++; updateAlbumPosition(); updateTableIndicator();
     }
 }
 function prevTable() {
     if (currentTableIndex > 0) {
-        currentTableIndex--;
-        updateAlbumPosition();
-        updateTableIndicator();
+        currentTableIndex--; updateAlbumPosition(); updateTableIndicator();
     }
 }
 function updateTableIndicator() {
@@ -969,9 +1156,7 @@ function updateTableIndicator() {
 // ===== ТАЙМЕР =====
 function startTimer() {
     if (timer.running) return;
-
     if (gameMode !== 'cash' && isFinalLevel(level)) return;
-
     const info = getImbalanceInfo();
     if (info.imbalanced) { checkBalance(); return; }
 
@@ -979,12 +1164,12 @@ function startTimer() {
     const layout = document.querySelector('.main-layout');
     if (layout) layout.classList.add('focus-timer');
 
+    if (timer.interval) clearInterval(timer.interval);
     timer.interval = setInterval(() => {
         if (timer.totalSeconds > 0) {
             timer.totalSeconds--;
             updateTimerDisplay();
             updateTimerToBreak();
-            saveData();
         } else {
             nextLevel();
         }
@@ -995,7 +1180,7 @@ function startTimer() {
 
 function stopTimer() {
     timer.running = false;
-    clearInterval(timer.interval);
+    if (timer.interval) clearInterval(timer.interval);
     timer.interval = null;
     const layout = document.querySelector('.main-layout');
     if (layout) layout.classList.remove('focus-timer');
@@ -1005,7 +1190,6 @@ function stopTimer() {
 function skipLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
-
     const wasRunning = timer.running;
     stopTimer();
     nextLevel();
@@ -1020,11 +1204,7 @@ function nextLevel() {
         saveData();
         return;
     }
-
-    if (level >= structure.length) {
-        stopTimer();
-        return;
-    }
+    if (level >= structure.length) { stopTimer(); return; }
 
     level++;
     updateBlinds();
@@ -1052,14 +1232,11 @@ function nextLevel() {
 function prevLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
-
     if (level > 1) {
         const wasRunning = timer.running;
         if (wasRunning) stopTimer();
-
         level--;
         updateBlinds();
-
         const duration = getLevelDuration(level);
         if (duration === Infinity) {
             timer.totalSeconds = 0;
@@ -1068,7 +1245,6 @@ function prevLevel() {
             timer.totalSeconds = duration;
             timer.maxSeconds = duration;
         }
-
         updateTimerDisplay();
         updateNextLevelOnly();
         updateAnteDisplay();
@@ -1077,7 +1253,6 @@ function prevLevel() {
         updateTimerToBreak();
         updateAllUI();
         saveData();
-
         if (wasRunning) startTimer();
     }
 }
@@ -1094,7 +1269,6 @@ function updateBlinds() {
 function updateTimerDisplay() {
     const display = document.getElementById('timerDisplay');
     if (!display) return;
-
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         display.textContent = '—';
         display.classList.remove('blinking', 'danger');
@@ -1102,41 +1276,28 @@ function updateTimerDisplay() {
         updateProgressBar();
         return;
     }
-
     const m = Math.floor(timer.totalSeconds / 60);
     const s = timer.totalSeconds % 60;
     display.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-
-    // Красный цвет — последние 59 секунд
-    if (timer.totalSeconds <= 59 && timer.running) {
-        display.classList.add('danger');
-    } else {
-        display.classList.remove('danger');
-    }
+    if (timer.totalSeconds <= 59 && timer.running) display.classList.add('danger');
+    else display.classList.remove('danger');
     updateProgressBar();
 }
 
 function updateProgressBar() {
     const circle = document.querySelector('.progress-ring-circle');
     if (!circle) return;
-
     if (gameMode !== 'cash' && isFinalLevel(level)) {
         circle.style.strokeDashoffset = 0;
         circle.style.stroke = 'var(--accent-secondary)';
         return;
     }
-
     const r = circle.r.baseVal.value;
     const circ = 2 * Math.PI * r;
     const progress = timer.maxSeconds > 0 ? timer.totalSeconds / timer.maxSeconds : 0;
     circle.style.strokeDashoffset = circ * (1 - progress);
-
-    // При последних 59 сек меняем цвет кольца на красный, иначе — на var
-    if (timer.totalSeconds <= 59 && timer.running) {
-        circle.style.stroke = 'var(--accent-danger)';
-    } else {
-        circle.style.stroke = 'var(--timer-progress)';
-    }
+    if (timer.totalSeconds <= 59 && timer.running) circle.style.stroke = 'var(--accent-danger)';
+    else circle.style.stroke = 'var(--timer-progress)';
 }
 
 // ===== СЛЕДУЮЩИЙ УРОВЕНЬ =====
@@ -1144,18 +1305,9 @@ function updateNextLevelOnly() {
     const el = document.getElementById('nextLevelOnly');
     if (!el) return;
     const cfg = GAME_MODES[gameMode];
-    if (cfg && cfg.levels === false) {
-        el.textContent = 'Кэш-игра';
-        return;
-    }
-
+    if (cfg && cfg.levels === false) { el.textContent = 'Кэш-игра'; return; }
     const next = structure[level];
-
-    if (!next) {
-        el.textContent = '—';
-        return;
-    }
-
+    if (!next) { el.textContent = '—'; return; }
     if (next.type === 'break') {
         const mins = Math.round(next.duration / 60);
         el.textContent = `Следующий: ПЕРЕРЫВ (${mins} мин)`;
@@ -1169,45 +1321,24 @@ function updateNextLevelOnly() {
 function updateTimerToBreak() {
     const el = document.getElementById('timerToBreak');
     if (!el) return;
-
     const cfg = GAME_MODES[gameMode];
-
-    if (!cfg || !cfg.levels) {
-        el.textContent = '';
-        return;
-    }
-
+    if (!cfg || !cfg.levels) { el.textContent = ''; return; }
     if (isBreakLevel(level)) {
         const m = Math.ceil(timer.totalSeconds / 60);
         el.textContent = `До конца перерыва: ${m} мин`;
         return;
     }
-
-    if (isFinalLevel(level)) {
-        el.textContent = '';
-        return;
-    }
+    if (isFinalLevel(level)) { el.textContent = ''; return; }
 
     let secondsLeft = timer.totalSeconds;
     let found = false;
-
     for (let i = level; i < structure.length; i++) {
         const it = structure[i];
-        if (it.type === 'break') {
-            found = true;
-            break;
-        }
-        if (it.type === 'level') {
-            secondsLeft += it.duration;
-        }
+        if (it.type === 'break') { found = true; break; }
+        if (it.type === 'level') secondsLeft += it.duration;
         if (it.type === 'final') break;
     }
-
-    if (!found) {
-        el.textContent = '';
-        return;
-    }
-
+    if (!found) { el.textContent = ''; return; }
     const mins = Math.ceil(secondsLeft / 60);
     el.textContent = `До перерыва: ${mins} мин`;
 }
@@ -1217,9 +1348,7 @@ function updateBlindsVisibility() {
     const blindsRow = document.getElementById('blindsRow');
     const breakDisplay = document.getElementById('breakDisplay');
     const cfg = GAME_MODES[gameMode];
-
     if (!blindsRow || !breakDisplay) return;
-
     if (cfg && cfg.levels && isBreakLevel(level)) {
         blindsRow.classList.add('hidden');
         breakDisplay.style.display = 'block';
@@ -1240,7 +1369,6 @@ function updateAllUI() {
     updatePrizePool();
     updateEliminatedList();
     updateTotal();
-
     const mbEl = document.getElementById('mbScore');
     const bbEl = document.getElementById('bbScore');
     if (mbEl) mbEl.textContent = formatBlind(mbScore);
@@ -1251,21 +1379,11 @@ function updateLevelDisplay() {
     const el = document.getElementById('levelDisplay');
     if (!el) return;
     const cfg = GAME_MODES[gameMode];
-    if (cfg && cfg.levels === false) {
-        el.textContent = 'Кэш';
-        return;
-    }
-
+    if (cfg && cfg.levels === false) { el.textContent = 'Кэш'; return; }
     const item = getStructureItem(level);
-    if (!item) {
-        el.textContent = `Уровень ${getLevelNumber(level)}`;
-        return;
-    }
-    if (item.type === 'break') {
-        el.textContent = 'ПЕРЕРЫВ';
-    } else {
-        el.textContent = `Уровень ${getLevelNumber(level)}`;
-    }
+    if (!item) { el.textContent = `Уровень ${getLevelNumber(level)}`; return; }
+    if (item.type === 'break') el.textContent = 'ПЕРЕРЫВ';
+    else el.textContent = `Уровень ${getLevelNumber(level)}`;
 }
 
 function updateTotal() {
@@ -1277,13 +1395,11 @@ function updatePrizePool() {
     const totalClicks = appData.total;
     const totalAmount = totalClicks * currentMultiplier;
     const deduct = Math.round(totalAmount * 0.1);
-
     let display = totalAmount;
     if (deductTenPercent) display = totalAmount - deduct;
 
     const lt = document.getElementById('prizeTotal');
     if (lt) lt.textContent = formatNumber(display);
-
     const st = document.getElementById('prizeTotalSide');
     if (st) st.textContent = formatNumber(display);
 
@@ -1424,9 +1540,7 @@ function toggleDeductTenPercent() {
 function selectOption(opt) {
     currentOption = opt;
     document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active'));
-    if (event && event.target) {
-        event.target.closest('.option-btn').classList.add('active');
-    }
+    if (event && event.target) event.target.closest('.option-btn').classList.add('active');
     updatePrizePool();
     saveData();
 }
@@ -1449,45 +1563,34 @@ function resetAll() {
 
     const cb = document.getElementById('deductTenPercent');
     if (cb) cb.checked = false;
-
     const custom = document.getElementById('customMultiplier');
     if (custom) custom.value = '';
 
-    menuExpanded = { theme: false, prize: true, auto: false, dist: false };
+    menuExpanded = { room: true, theme: false, prize: true, auto: false, dist: false };
     closeBalanceOverlay();
 
-    if (gameMode) {
-        applyGameMode();
-    } else {
-        level = 1;
-        mbScore = 100;
-        bbScore = 100;
-        anteScore = 0;
-        updateAnteDisplay();
-        updateLevelDisplay();
-        updateNextLevelOnly();
-        updateTimerDisplay();
-        updateProgressBar();
-        updateTimerToBreak();
-        updateBlindsVisibility();
+    if (gameMode) applyGameMode();
+    else {
+        level = 1; mbScore = 100; bbScore = 100; anteScore = 0;
+        updateAnteDisplay(); updateLevelDisplay(); updateNextLevelOnly();
+        updateTimerDisplay(); updateProgressBar(); updateTimerToBreak(); updateBlindsVisibility();
     }
 
     renderTables();
     updateAddRemoveButtons();
     updateAllUI();
     initializeMenuSections();
+    updateRoomUI();
     saveData();
 }
 
 document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && document.getElementById('nameModal').classList.contains('active')) {
-        confirmPlayerName();
-    }
+    if (e.key === 'Enter' && document.getElementById('nameModal').classList.contains('active')) confirmPlayerName();
     if (e.key === 'Escape') {
         closeNameModal();
         document.getElementById('gameModeOverlay').classList.remove('active');
     }
 });
 
-setInterval(saveData, 5000);
-window.addEventListener('beforeunload', saveData);
+setInterval(saveDataLocalOnly, 5000);
+window.addEventListener('beforeunload', saveDataLocalOnly);

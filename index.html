@@ -6,6 +6,29 @@
     <title>Покерный таймер</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase SDK (module) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, onValue, set, off }
+            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBHxDSZv7l17FVkJLFO4TNyFy5QYnTlkMo",
+            authDomain: "mrpoker-65c2a.firebaseapp.com",
+            databaseURL: "https://mrpoker-65c2a-default-rtdb.firebaseio.com",
+            projectId: "mrpoker-65c2a",
+            storageBucket: "mrpoker-65c2a.firebasestorage.app",
+            messagingSenderId: "601586399037",
+            appId: "1:601586399037:web:2ba9891d9d56b51b1f3754"
+        };
+
+        const fbApp = initializeApp(firebaseConfig);
+        const fbDB = getDatabase(fbApp);
+
+        window.fb = { db: fbDB, ref, onValue, set, off };
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
 </head>
 <body>
     <div class="burger-menu">
@@ -35,6 +58,33 @@
                 </button>
             </div>
             <div class="gamemode-hint">Режим можно поменять в любой момент через кнопку сверху</div>
+        </div>
+    </div>
+
+    <!-- ОВЕРЛЕЙ ВЫБОРА КОМНАТЫ -->
+    <div class="room-overlay" id="roomOverlay">
+        <div class="room-content">
+            <h1>👥 Синхронизация</h1>
+            <p class="room-hint">Создайте новую комнату или присоединитесь к существующей, чтобы играть с нескольких устройств.</p>
+            <div class="room-buttons">
+                <button class="room-btn room-btn-create" onclick="createRoom()">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Создать комнату</span>
+                </button>
+                <button class="room-btn room-btn-join" onclick="openJoinRoom()">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Присоединиться</span>
+                </button>
+            </div>
+            <div class="room-join-form" id="roomJoinForm" style="display:none;">
+                <input type="text" id="roomJoinInput" class="room-input" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off">
+                <div class="room-join-actions">
+                    <button class="room-btn room-btn-cancel" onclick="closeJoinRoom()">Отмена</button>
+                    <button class="room-btn room-btn-confirm" onclick="joinRoom()">Войти</button>
+                </div>
+                <div class="room-error" id="roomJoinError" style="display:none;"></div>
+            </div>
+            <button class="room-skip" onclick="skipRoom()">Работать без синхронизации</button>
         </div>
     </div>
 
@@ -172,7 +222,33 @@
             <i class="fas fa-redo"></i> Сбросить ВСЁ
         </button>
 
-        <!-- СМЕНА ТЕМЫ -->
+        <!-- КОМНАТА -->
+        <div class="menu-section room-section" id="roomSection" style="display:none;">
+            <div class="section-header" onclick="toggleSection('room')">
+                <h3><i class="fas fa-users"></i> Комната</h3>
+                <span class="toggle-arrow">▼</span>
+            </div>
+            <div class="section-content" id="roomSectionContent">
+                <div class="room-status">
+                    <div class="room-code-row">
+                        <span class="room-code-label">Код:</span>
+                        <span class="room-code" id="roomCodeDisplay">—</span>
+                    </div>
+                    <button class="room-copy-btn" onclick="copyRoomCode()">
+                        <i class="fas fa-copy"></i> Скопировать ссылку
+                    </button>
+                </div>
+                <div class="room-sync-status" id="roomSyncStatus">
+                    <span class="sync-dot" id="syncDot"></span>
+                    <span id="syncText">Не подключено</span>
+                </div>
+                <button class="room-leave-btn" onclick="leaveRoom()">
+                    <i class="fas fa-sign-out-alt"></i> Выйти из комнаты
+                </button>
+            </div>
+        </div>
+
+        <!-- ТЕМА -->
         <div class="menu-section theme-section">
             <div class="section-header" onclick="toggleSection('theme')">
                 <h3><i class="fas fa-palette"></i> Цветовая гамма</h3>
