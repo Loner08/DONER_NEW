@@ -28,12 +28,16 @@ let timer = {
     interval: null
 };
 
+let timerStartedAt = 0;
+let timerSecondsAtStart = 0;
+
 let level = 1;
 let mbScore = 100;
 let bbScore = 100;
 let anteScore = 0;
 
-let menuExpanded = { room: true, theme: false, prize: true, auto: false, dist: false };
+// Все секции меню закрыты по умолчанию
+let menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
 
 // ===== СИНХРОНИЗАЦИЯ =====
 let clientId = (function() {
@@ -183,6 +187,8 @@ window.onload = function() {
     }
 
     loadData();
+    restoreTimerAfterReload();
+
     renderTables();
     initializeMenuSections();
     updateAddRemoveButtons();
@@ -210,6 +216,27 @@ window.onload = function() {
         updateAllUI();
     }
 };
+
+function restoreTimerAfterReload() {
+    const savedRunning = localStorage.getItem('pokerTimerRunning');
+    const savedStartedAt = parseInt(localStorage.getItem('pokerTimerStartedAt') || '0');
+    const savedSecondsAtStart = parseInt(localStorage.getItem('pokerTimerSecondsAtStart') || '0');
+
+    if (savedRunning === 'true' && savedStartedAt > 0) {
+        const elapsed = Math.floor((Date.now() - savedStartedAt) / 1000);
+        timer.totalSeconds = Math.max(0, savedSecondsAtStart - elapsed);
+        timer.running = true;
+        timerStartedAt = savedStartedAt;
+        timerSecondsAtStart = savedSecondsAtStart;
+
+        const layout = document.querySelector('.main-layout');
+        if (layout) layout.classList.add('focus-timer');
+
+        setTimeout(() => startTimerLocal(), 100);
+    } else {
+        timer.running = false;
+    }
+}
 
 function loadData() {
     try {
@@ -239,8 +266,6 @@ function loadData() {
                 timer.totalSeconds = d.timer.totalSeconds ?? 15 * 60;
                 timer.maxSeconds = d.timer.maxSeconds ?? 15 * 60;
             }
-            timer.running = false;
-            timer.interval = null;
             level = Math.min(Math.max(1, d.level || 1), structure.length);
             mbScore = d.mbScore || 100;
             bbScore = d.bbScore || 100;
@@ -248,7 +273,6 @@ function loadData() {
             currentMultiplier = d.currentMultiplier || 500;
             currentOption = d.currentOption || 2;
             deductTenPercent = d.deductTenPercent || false;
-            menuExpanded = d.menuExpanded || menuExpanded;
             gameMode = d.gameMode || null;
             const cb = document.getElementById('deductTenPercent');
             if (cb) cb.checked = deductTenPercent;
@@ -272,54 +296,37 @@ function saveDataLocalOnly() {
             currentMultiplier, currentOption, deductTenPercent, menuExpanded,
             gameMode
         }));
+        localStorage.setItem('pokerTimerRunning', timer.running ? 'true' : 'false');
+        localStorage.setItem('pokerTimerStartedAt', String(timerStartedAt || 0));
+        localStorage.setItem('pokerTimerSecondsAtStart', String(timerSecondsAtStart || 0));
     } catch(e) {}
 }
 
 // ===== СИНХРОНИЗАЦИЯ С FIREBASE =====
 function pushToFirebase() {
     if (!window.fb || !roomCode) return;
-    const { db, ref, get, set } = window.fb;
+    const { db, ref, set } = window.fb;
     const stateRef = ref(db, 'rooms/' + roomCode + '/state');
-
-    // Сначала считываем актуальное состояние с сервера
-    get(stateRef).then((snapshot) => {
-        const remote = snapshot.val();
-
-        // Если на сервере более свежая версия от другого клиента —
-        // применяем её к себе и НЕ перезаписываем
-        if (remote && remote.ts && lastWriteTs && remote.ts > lastWriteTs && remote.clientId !== clientId) {
-            isApplyingRemote = true;
-            try {
-                applyRemoteState(remote);
-            } finally {
-                isApplyingRemote = false;
-            }
-            return;   // не перезаписываем
-        }
-
-        // Иначе — пишем своё состояние
-        lastWriteTs = Date.now();
-        set(stateRef, {
-            clientId: clientId,
-            ts: lastWriteTs,
-            appData: appData,
-            timer: {
-                totalSeconds: timer.totalSeconds,
-                maxSeconds: timer.maxSeconds,
-                running: timer.running
-            },
-            level: level,
-            mbScore: mbScore,
-            bbScore: bbScore,
-            anteScore: anteScore,
-            gameMode: gameMode,
-            theme: document.documentElement.getAttribute('data-theme') || 'vegas'
-        }).catch(err => {
-            console.warn('Firebase write error:', err);
-            updateSyncStatus('offline');
-        });
+    lastWriteTs = Date.now();
+    set(stateRef, {
+        clientId: clientId,
+        ts: lastWriteTs,
+        appData: appData,
+        timer: {
+            totalSeconds: timer.totalSeconds,
+            maxSeconds: timer.maxSeconds,
+            running: timer.running,
+            startedAt: timerStartedAt,
+            secondsAtStart: timerSecondsAtStart
+        },
+        level: level,
+        mbScore: mbScore,
+        bbScore: bbScore,
+        anteScore: anteScore,
+        gameMode: gameMode,
+        theme: document.documentElement.getAttribute('data-theme') || 'vegas'
     }).catch(err => {
-        console.warn('Firebase get error:', err);
+        console.warn('Firebase write error:', err);
         updateSyncStatus('offline');
     });
 }
@@ -344,10 +351,6 @@ function connectToRoom(code) {
             return;
         }
         if (data.clientId === clientId) return;
-        if (data.ts && lastWriteTs && data.ts < lastWriteTs) return;
-
-        // Обновляем lastWriteTs, чтобы знали, что на сервере свежие данные
-        if (data.ts) lastWriteTs = data.ts;
 
         isApplyingRemote = true;
         try {
@@ -364,13 +367,24 @@ function connectToRoom(code) {
 function applyRemoteState(data) {
     if (!data) return;
 
+    if (data.ts) lastWriteTs = Math.max(lastWriteTs, data.ts);
+
     if (data.appData) appData = data.appData;
 
     if (data.timer) {
-        timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
-        timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
         const wasRunning = timer.running;
+
+        if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
+            const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
+            timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
+        } else {
+            timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
+        }
+        timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
         timer.running = !!data.timer.running;
+        timerStartedAt = data.timer.startedAt || 0;
+        timerSecondsAtStart = data.timer.secondsAtStart || 0;
+
         if (timer.running && !wasRunning) startTimerLocal();
         else if (!timer.running && wasRunning) stopTimerLocal();
     }
@@ -396,6 +410,9 @@ function applyRemoteState(data) {
 function startTimerLocal() {
     if (timer.interval) clearInterval(timer.interval);
     timer.running = true;
+    timerStartedAt = Date.now();
+    timerSecondsAtStart = timer.totalSeconds;
+
     timer.interval = setInterval(() => {
         if (timer.totalSeconds > 0) {
             timer.totalSeconds--;
@@ -432,20 +449,19 @@ function updateSyncStatus(status) {
 function updateRoomUI(openSidebar = false) {
     const codeEl = document.getElementById('roomCodeDisplay');
     if (codeEl) codeEl.textContent = roomCode || '—';
-    const section = document.getElementById('roomSection');
-    if (section) section.style.display = roomCode ? 'block' : 'none';
 
-    if (roomCode) {
+    const section = document.getElementById('roomSection');
+    if (section) section.style.display = 'block';  // всегда видно
+
+    if (roomCode && openSidebar) {
         const content = document.getElementById('roomSectionContent');
         if (content) {
             content.classList.add('expanded');
             const arrow = content.parentElement.querySelector('.toggle-arrow');
             if (arrow) arrow.style.transform = 'rotate(180deg)';
         }
-        if (openSidebar) {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) sidebar.classList.add('active');
-        }
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.add('active');
     }
 }
 
@@ -1220,6 +1236,9 @@ function startTimer() {
     if (info.imbalanced) { checkBalance(); return; }
 
     timer.running = true;
+    timerStartedAt = Date.now();
+    timerSecondsAtStart = timer.totalSeconds;
+
     const layout = document.querySelector('.main-layout');
     if (layout) layout.classList.add('focus-timer');
 
@@ -1235,10 +1254,8 @@ function stopTimer() {
 function skipLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
-    const wasRunning = timer.running;
-    stopTimerLocal();
+    // Не останавливаем таймер — просто переходим на следующий
     nextLevel();
-    if (wasRunning && timer.running) startTimerLocal();
 }
 
 function nextLevel() {
@@ -1249,8 +1266,13 @@ function nextLevel() {
         saveData();
         return;
     }
-    if (level >= structure.length) { stopTimerLocal(); saveData(); return; }
+    if (level >= structure.length) {
+        stopTimerLocal();
+        saveData();
+        return;
+    }
 
+    const wasRunning = timer.running;
     level++;
     updateBlinds();
 
@@ -1266,6 +1288,10 @@ function nextLevel() {
 
     timer.totalSeconds = duration;
     timer.maxSeconds = duration;
+    if (wasRunning) {
+        timerStartedAt = Date.now();
+        timerSecondsAtStart = timer.totalSeconds;
+    }
 
     updateTimerDisplay();
     updateNextLevelOnly();
@@ -1276,10 +1302,7 @@ function nextLevel() {
     updateAllUI();
     saveData();
 
-    // Перезапускаем локальный таймер, если он был запущен
-    if (timer.running) {
-        startTimerLocal();
-    }
+    if (wasRunning) startTimerLocal();
 }
 
 function prevLevel() {
@@ -1297,6 +1320,10 @@ function prevLevel() {
         } else {
             timer.totalSeconds = duration;
             timer.maxSeconds = duration;
+        }
+        if (wasRunning) {
+            timerStartedAt = Date.now();
+            timerSecondsAtStart = timer.totalSeconds;
         }
         updateTimerDisplay();
         updateNextLevelOnly();
@@ -1537,6 +1564,9 @@ function initializeMenuSections() {
         if (menuExpanded[sec]) {
             el.classList.add('expanded');
             if (arrow) arrow.style.transform = 'rotate(180deg)';
+        } else {
+            el.classList.remove('expanded');
+            if (arrow) arrow.style.transform = 'rotate(0)';
         }
     });
     document.querySelectorAll('.multiplier-btn').forEach(btn => {
@@ -1613,13 +1643,15 @@ function resetAll() {
     deductTenPercent = false;
     currentTableIndex = 0;
     timer = { totalSeconds: 15 * 60, maxSeconds: 15 * 60, running: false, interval: null };
+    timerStartedAt = 0;
+    timerSecondsAtStart = 0;
 
     const cb = document.getElementById('deductTenPercent');
     if (cb) cb.checked = false;
     const custom = document.getElementById('customMultiplier');
     if (custom) custom.value = '';
 
-    menuExpanded = { room: true, theme: false, prize: true, auto: false, dist: false };
+    menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
     closeBalanceOverlay();
 
     if (gameMode) applyGameMode();
@@ -1644,6 +1676,5 @@ document.addEventListener('keydown', e => {
         document.getElementById('gameModeOverlay').classList.remove('active');
     }
 });
-
 
 window.addEventListener('beforeunload', saveDataLocalOnly);
