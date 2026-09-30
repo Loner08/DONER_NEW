@@ -406,6 +406,18 @@ function updateRoomUI() {
     if (codeEl) codeEl.textContent = roomCode || '—';
     const section = document.getElementById('roomSection');
     if (section) section.style.display = roomCode ? 'block' : 'none';
+
+    // Раскрываем секцию "Комната" и открываем сам сайдбар
+    if (roomCode) {
+        const content = document.getElementById('roomSectionContent');
+        if (content) {
+            content.classList.add('expanded');
+            const arrow = content.parentElement.querySelector('.toggle-arrow');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+        }
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.add('active');
+    }
 }
 
 function generateRoomCode() {
