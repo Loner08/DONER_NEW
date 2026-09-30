@@ -494,7 +494,7 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
     padding: 10px 6px; cursor: pointer; transition: all 0.2s;
     min-height: 64px; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    touch-action: pan-y;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
@@ -960,12 +960,21 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
 }
 .room-copy-btn {
     background: transparent; border: 1px solid var(--border-card);
-    color: var(--text-main); padding: 6px 14px;
+    color: var(--text-main); padding: 8px 14px;
     border-radius: 8px; font-size: 12px; cursor: pointer;
     transition: all 0.2s;
     display: flex; align-items: center; gap: 6px;
+    width: 100%; justify-content: center;
 }
 .room-copy-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--accent-primary); }
+
+.room-copy-dealer {
+    background: var(--accent-primary) !important;
+    color: var(--text-on-accent) !important;
+    border-color: var(--accent-primary) !important;
+    font-weight: 600;
+}
+.room-copy-dealer:hover { filter: brightness(0.9); }
 
 .room-sync-status {
     display: flex; align-items: center; gap: 8px;
@@ -1003,6 +1012,194 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
 }
 .blinking { animation: blink 1s infinite; }
 
+/* ===== МИНИ-ТАЙМЕР ДЛЯ ДИЛЕРА ===== */
+.dealer-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    background: var(--bg-panel);
+    border-bottom: 2px solid var(--border-soft);
+    padding: 12px 20px 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.dealer-timer-row {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    justify-content: center;
+}
+
+.dealer-level {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-primary);
+    padding: 4px 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+}
+
+.dealer-time {
+    font-size: 34px;
+    font-weight: bold;
+    color: var(--text-main);
+    font-family: 'Courier New', monospace;
+    line-height: 1;
+}
+
+.dealer-time.danger {
+    color: var(--accent-danger);
+    animation: blink 1s infinite;
+}
+
+.dealer-blinds-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.dealer-blind {
+    padding: 5px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+
+.dealer-blind-mb { background: var(--blind-mb-bg); }
+.dealer-blind-bb { background: var(--blind-bb-bg); }
+.dealer-blind-ante { background: var(--blind-ante-bg); }
+
+.dealer-sync {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.dealer-sync .sync-dot {
+    width: 8px;
+    height: 8px;
+}
+
+/* ===== РЕЖИМ ДИЛЕРА ===== */
+body.role-dealer .burger-menu,
+body.role-dealer .mode-switch-btn,
+body.role-dealer .sidebar,
+body.role-dealer .left-panel,
+body.role-dealer .album-add-remove {
+    display: none !important;
+}
+
+body.role-dealer .main-layout {
+    flex-direction: column;
+    max-width: 100%;
+    padding-top: 110px;
+}
+
+body.role-dealer .right-panel {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    gap: 12px;
+}
+
+body.role-dealer .tables-album {
+    padding: 14px;
+}
+
+body.role-dealer .buttons-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+body.role-dealer .number-btn {
+    min-height: 90px;
+    padding: 14px 10px;
+}
+
+body.role-dealer .number-btn .btn-number {
+    font-size: 20px;
+}
+
+body.role-dealer .number-btn .btn-count {
+    font-size: 18px;
+    margin-top: 4px;
+}
+
+body.role-dealer .number-btn.has-name .btn-number {
+    font-size: 18px;
+}
+
+body.role-dealer .btn-table-badge {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+    top: 4px;
+    left: 6px;
+}
+
+body.role-dealer .btn-delete {
+    font-size: 18px;
+    top: 4px;
+    right: 8px;
+    padding: 4px 8px;
+}
+
+body.role-dealer .btn-minus-count {
+    font-size: 14px;
+    bottom: 4px;
+    right: 8px;
+    padding: 4px 10px;
+}
+
+body.role-dealer .table-indicator {
+    font-size: 22px;
+    padding: 10px 20px;
+}
+
+body.role-dealer .header {
+    padding: 14px 20px;
+}
+
+body.role-dealer .header h1 {
+    font-size: 18px;
+}
+
+body.role-dealer .total-count {
+    font-size: 2.6em;
+}
+
+body.role-dealer .total-block-value {
+    font-size: 48px;
+}
+
+body.role-dealer .album-arrow {
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+}
+
+body.role-dealer .eliminated-box {
+    padding: 16px 20px;
+}
+
+body.role-dealer .eliminated-item {
+    font-size: 15px;
+    padding: 6px 14px;
+}
+
+/* ===== ПЛАНШЕТ ===== */
 @media (max-width: 1000px) {
     .main-layout { flex-direction: column; }
     .left-panel, .right-panel { flex: none; width: 100%; }
@@ -1012,6 +1209,7 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
     .main-layout.focus-timer .timer-display { font-size: 54px; }
 }
 
+/* ===== ТЕЛЕФОН ===== */
 @media (max-width: 600px) {
     body { padding: 8px; }
     .left-panel { padding: 12px; border-radius: 16px; }
@@ -1076,8 +1274,59 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
     .room-content { padding: 26px 20px; }
     .room-content h1 { font-size: 20px; }
     .room-code { font-size: 18px; letter-spacing: 3px; }
+
+    /* Дилер на телефоне */
+    body.role-dealer .main-layout {
+        padding-top: 96px;
+    }
+
+    .dealer-time {
+        font-size: 26px;
+    }
+
+    .dealer-level {
+        font-size: 13px;
+        padding: 3px 10px;
+    }
+
+    .dealer-blind {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+
+    body.role-dealer .album-arrow {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+
+    body.role-dealer .number-btn {
+        min-height: 70px;
+        padding: 10px 6px;
+    }
+
+    body.role-dealer .number-btn .btn-number {
+        font-size: 16px;
+    }
+
+    body.role-dealer .number-btn .btn-count {
+        font-size: 15px;
+    }
+
+    body.role-dealer .number-btn.has-name .btn-number {
+        font-size: 14px;
+    }
+
+    body.role-dealer .table-indicator {
+        font-size: 17px;
+    }
+
+    body.role-dealer .total-block-value {
+        font-size: 36px;
+    }
 }
 
+/* ===== ОЧЕНЬ МАЛЕНЬКИЕ ЭКРАНЫ ===== */
 @media (max-width: 380px) {
     .timer-wrapper,
     .main-layout.focus-timer .timer-wrapper {

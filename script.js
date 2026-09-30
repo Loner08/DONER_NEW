@@ -38,6 +38,9 @@ let anteScore = 0;
 
 let menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
 
+// ===== РОЛЬ =====
+let isDealer = false;
+
 // ===== СИНХРОНИЗАЦИЯ =====
 let clientId = (function() {
     let id = localStorage.getItem('pokerClientId');
@@ -122,6 +125,7 @@ const GAME_MODE_NAMES = {
 
 // ===== ТЕМЫ =====
 function setTheme(name) {
+    if (isDealer) return;
     const themes = ['vegas', 'casino', 'cyber', 'sport', 'native', 'blue'];
     if (!themes.includes(name)) return;
     document.documentElement.setAttribute('data-theme', name);
@@ -176,6 +180,25 @@ function formatBlind(num) {
 
 // ===== СТАРТ =====
 window.onload = function() {
+    // Определяем роль из URL
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'dealer') {
+        isDealer = true;
+        localStorage.setItem('pokerRole', 'dealer');
+    } else if (roleParam === 'host') {
+        isDealer = false;
+        localStorage.setItem('pokerRole', 'host');
+    } else {
+        // Нет параметра — берём из localStorage
+        isDealer = localStorage.getItem('pokerRole') === 'dealer';
+    }
+
+    if (isDealer) {
+        document.body.classList.add('role-dealer');
+        document.getElementById('dealerTopbar').style.display = 'flex';
+    }
+
     if (window.fb) {
         fbReady = true;
     } else {
@@ -188,8 +211,6 @@ window.onload = function() {
     loadData();
     restoreTimerAfterReload();
 
-    // ВАЖНО: roomCode устанавливается ДО отрисовки меню,
-    // чтобы секция "Комната" была раскрыта сразу
     const urlRoom = getRoomFromUrl();
     roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
     if (roomCode) localStorage.setItem('pokerRoomCode', roomCode);
@@ -201,24 +222,32 @@ window.onload = function() {
     updateThemeButtons();
     updateRoomUI();
 
-    // Подключаемся к Firebase, если комната есть и fb готов
     if (roomCode && fbReady) {
         connectToRoom(roomCode);
     }
 
-    // Показываем оверлей выбора комнаты, если её нет
-    if (!roomCode) {
+    // Оверлей выбора комнаты — только для хоста
+    if (!roomCode && !isDealer) {
+        setTimeout(() => {
+            document.getElementById('roomOverlay').classList.add('active');
+        }, 200);
+    } else if (!roomCode && isDealer) {
+        // Дилера без комнаты — сразу в оверлей
         setTimeout(() => {
             document.getElementById('roomOverlay').classList.add('active');
         }, 200);
     }
 
-    // Показываем оверлей выбора режима
-    if (!gameMode) {
-        document.getElementById('gameModeOverlay').classList.add('active');
-        updateAllUI();
+    // Оверлей выбора режима — только у хоста
+    if (!isDealer) {
+        if (!gameMode) {
+            document.getElementById('gameModeOverlay').classList.add('active');
+            updateAllUI();
+        } else {
+            updateModeSwitchLabel();
+            updateAllUI();
+        }
     } else {
-        updateModeSwitchLabel();
         updateAllUI();
     }
 };
@@ -313,28 +342,71 @@ function pushToFirebase() {
     if (!window.fb || !roomCode) return;
     const { db, ref, set } = window.fb;
     const stateRef = ref(db, 'rooms/' + roomCode + '/state');
-    lastWriteTs = Date.now();
-    set(stateRef, {
-        clientId: clientId,
-        ts: lastWriteTs,
-        appData: appData,
-        timer: {
-            totalSeconds: timer.totalSeconds,
-            maxSeconds: timer.maxSeconds,
-            running: timer.running,
-            startedAt: timerStartedAt,
-            secondsAtStart: timerSecondsAtStart
-        },
-        level: level,
-        mbScore: mbScore,
-        bbScore: bbScore,
-        anteScore: anteScore,
-        gameMode: gameMode,
-        theme: document.documentElement.getAttribute('data-theme') || 'vegas'
-    }).catch(err => {
-        console.warn('Firebase write error:', err);
-        updateSyncStatus('offline');
-    });
+
+    // Дилер отправляет ТОЛЬКО appData + clientId + ts,
+    // не перезаписывая timer/level/theme/gameMode
+    if (isDealer) {
+        const update = {
+            clientId: clientId,
+            ts: Date.now(),
+            appData: appData
+        };
+        lastWriteTs = update.ts;
+        // Используем update вместо set, чтобы не затирать другие поля
+        const { update: fbUpdate } = window.fb;
+        if (fbUpdate) {
+            fbUpdate(stateRef, update).catch(err => {
+                console.warn('Firebase update error:', err);
+                updateSyncStatus('offline');
+            });
+        } else {
+            // fallback: set весь state
+            set(stateRef, {
+                clientId: clientId,
+                ts: update.ts,
+                appData: appData,
+                timer: {
+                    totalSeconds: timer.totalSeconds,
+                    maxSeconds: timer.maxSeconds,
+                    running: timer.running,
+                    startedAt: timerStartedAt,
+                    secondsAtStart: timerSecondsAtStart
+                },
+                level: level,
+                mbScore: mbScore,
+                bbScore: bbScore,
+                anteScore: anteScore,
+                gameMode: gameMode,
+                theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+            }).catch(err => {
+                console.warn('Firebase write error:', err);
+                updateSyncStatus('offline');
+            });
+        }
+    } else {
+        lastWriteTs = Date.now();
+        set(stateRef, {
+            clientId: clientId,
+            ts: lastWriteTs,
+            appData: appData,
+            timer: {
+                totalSeconds: timer.totalSeconds,
+                maxSeconds: timer.maxSeconds,
+                running: timer.running,
+                startedAt: timerStartedAt,
+                secondsAtStart: timerSecondsAtStart
+            },
+            level: level,
+            mbScore: mbScore,
+            bbScore: bbScore,
+            anteScore: anteScore,
+            gameMode: gameMode,
+            theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+        }).catch(err => {
+            console.warn('Firebase write error:', err);
+            updateSyncStatus('offline');
+        });
+    }
 }
 
 function connectToRoom(code) {
@@ -353,7 +425,8 @@ function connectToRoom(code) {
         updateSyncStatus('online');
 
         if (!data) {
-            pushToFirebase();
+            // Комната пустая — только хост пишет начальное состояние
+            if (!isDealer) pushToFirebase();
             return;
         }
         if (data.clientId === clientId) return;
@@ -375,40 +448,72 @@ function applyRemoteState(data) {
 
     if (data.ts) lastWriteTs = Math.max(lastWriteTs, data.ts);
 
+    // Обновляем appData у всех
     if (data.appData) appData = data.appData;
 
-    if (data.timer) {
-        const wasRunning = timer.running;
+    // Таймер, уровень и тему обновляет только хост
+    if (!isDealer) {
+        if (data.timer) {
+            const wasRunning = timer.running;
 
-        if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
-            const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
-            timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
-        } else {
-            timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
+            if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
+                const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
+                timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
+            } else {
+                timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
+            }
+            timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
+            timer.running = !!data.timer.running;
+            timerStartedAt = data.timer.startedAt || 0;
+            timerSecondsAtStart = data.timer.secondsAtStart || 0;
+
+            if (timer.running && !wasRunning) startTimerLocal();
+            else if (!timer.running && wasRunning) stopTimerLocal();
         }
-        timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
-        timer.running = !!data.timer.running;
-        timerStartedAt = data.timer.startedAt || 0;
-        timerSecondsAtStart = data.timer.secondsAtStart || 0;
 
-        if (timer.running && !wasRunning) startTimerLocal();
-        else if (!timer.running && wasRunning) stopTimerLocal();
-    }
+        if (typeof data.level === 'number') level = data.level;
+        if (typeof data.mbScore === 'number') mbScore = data.mbScore;
+        if (typeof data.bbScore === 'number') bbScore = data.bbScore;
+        if (typeof data.anteScore === 'number') anteScore = data.anteScore;
+        if (typeof data.gameMode === 'string') gameMode = data.gameMode;
 
-    if (typeof data.level === 'number') level = data.level;
-    if (typeof data.mbScore === 'number') mbScore = data.mbScore;
-    if (typeof data.bbScore === 'number') bbScore = data.bbScore;
-    if (typeof data.anteScore === 'number') anteScore = data.anteScore;
-    if (typeof data.gameMode === 'string') gameMode = data.gameMode;
+        if (data.theme) {
+            document.documentElement.setAttribute('data-theme', data.theme);
+            try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
+            updateThemeButtons();
+        }
+    } else {
+        // Дилер всё равно видит блайнды и уровень (только для отображения)
+        if (typeof data.level === 'number') level = data.level;
+        if (typeof data.mbScore === 'number') mbScore = data.mbScore;
+        if (typeof data.bbScore === 'number') bbScore = data.bbScore;
+        if (typeof data.anteScore === 'number') anteScore = data.anteScore;
+        if (data.timer) {
+            const wasRunning = timer.running;
+            if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
+                const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
+                timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
+            } else {
+                timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
+            }
+            timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
+            timer.running = !!data.timer.running;
+            timerStartedAt = data.timer.startedAt || 0;
+            timerSecondsAtStart = data.timer.secondsAtStart || 0;
 
-    if (data.theme) {
-        document.documentElement.setAttribute('data-theme', data.theme);
-        try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
-        updateThemeButtons();
+            if (timer.running && !wasRunning) startTimerLocal();
+            else if (!timer.running && wasRunning) stopTimerLocal();
+
+            if (data.theme) {
+                document.documentElement.setAttribute('data-theme', data.theme);
+                try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
+                updateThemeButtons();
+            }
+        }
     }
 
     renderTables();
-    updateModeSwitchLabel();
+    if (!isDealer) updateModeSwitchLabel();
     updateAllUI();
     saveDataLocalOnly();
 }
@@ -424,9 +529,10 @@ function startTimerLocal() {
             timer.totalSeconds--;
             updateTimerDisplay();
             updateTimerToBreak();
+            updateDealerTimer();
             saveDataLocalOnly();
         } else {
-            nextLevel();
+            if (!isDealer) nextLevel();
         }
     }, 1000);
 }
@@ -442,13 +548,27 @@ function stopTimerLocal() {
 function updateSyncStatus(status) {
     const dot = document.getElementById('syncDot');
     const text = document.getElementById('syncText');
-    if (!dot || !text) return;
-    dot.classList.remove('online', 'offline', 'connecting');
-    switch (status) {
-        case 'online': dot.classList.add('online'); text.textContent = 'Синхронизировано'; break;
-        case 'offline': dot.classList.add('offline'); text.textContent = 'Нет связи'; break;
-        case 'connecting': dot.classList.add('connecting'); text.textContent = 'Подключение…'; break;
-        default: text.textContent = 'Не подключено';
+    if (dot && text) {
+        dot.classList.remove('online', 'offline', 'connecting');
+        switch (status) {
+            case 'online': dot.classList.add('online'); text.textContent = 'Синхронизировано'; break;
+            case 'offline': dot.classList.add('offline'); text.textContent = 'Нет связи'; break;
+            case 'connecting': dot.classList.add('connecting'); text.textContent = 'Подключение…'; break;
+            default: text.textContent = 'Не подключено';
+        }
+    }
+
+    // У дилера — отдельный индикатор
+    const dDot = document.getElementById('dealerSyncDot');
+    const dText = document.getElementById('dealerSyncText');
+    if (dDot && dText) {
+        dDot.classList.remove('online', 'offline', 'connecting');
+        switch (status) {
+            case 'online': dDot.classList.add('online'); dText.textContent = 'Синхронизировано'; break;
+            case 'offline': dDot.classList.add('offline'); dText.textContent = 'Нет связи'; break;
+            case 'connecting': dDot.classList.add('connecting'); dText.textContent = 'Подключение…'; break;
+            default: dText.textContent = 'Не подключено';
+        }
     }
 }
 
@@ -457,10 +577,9 @@ function updateRoomUI(openSidebar = false) {
     if (codeEl) codeEl.textContent = roomCode || '—';
 
     const section = document.getElementById('roomSection');
-    if (section) section.style.display = 'block';   // всегда видно
+    if (section) section.style.display = roomCode ? 'block' : 'none';
 
-    // Раскрываем секцию, если есть комната
-    if (roomCode) {
+    if (roomCode && !isDealer) {
         const content = document.getElementById('roomSectionContent');
         if (content) {
             content.classList.add('expanded');
@@ -469,7 +588,7 @@ function updateRoomUI(openSidebar = false) {
         }
     }
 
-    if (roomCode && openSidebar) {
+    if (roomCode && openSidebar && !isDealer) {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.classList.add('active');
     }
@@ -500,11 +619,13 @@ function waitForFirebase() {
 }
 
 function createRoom() {
+    if (isDealer) return;
     waitForFirebase().then(() => {
         if (!window.fb) return;
         fbReady = true;
         const code = generateRoomCode();
         localStorage.setItem('pokerRoomCode', code);
+        localStorage.setItem('pokerRole', 'host');
         roomCode = code;
         document.getElementById('roomOverlay').classList.remove('active');
         updateRoomUI(true);
@@ -526,6 +647,7 @@ function closeJoinRoom() {
 }
 
 function joinRoom() {
+    if (isDealer) return;
     waitForFirebase().then(() => {
         if (!window.fb) return;
         fbReady = true;
@@ -557,6 +679,7 @@ function joinRoom() {
             }
             unsub();
             localStorage.setItem('pokerRoomCode', code);
+            localStorage.setItem('pokerRole', 'host');
             roomCode = code;
             document.getElementById('roomOverlay').classList.remove('active');
             updateRoomUI(true);
@@ -577,23 +700,43 @@ function joinRoom() {
 
 function copyRoomCode() {
     if (!roomCode) return;
-    const fullUrl = location.origin + location.pathname + '?room=' + roomCode;
+    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=host';
+    copyToClipboard(fullUrl, 'Ссылка для хоста скопирована');
+}
+
+function copyDealerLink() {
+    if (!roomCode) return;
+    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=dealer';
+    copyToClipboard(fullUrl, 'Ссылка для дилера скопирована');
+}
+
+function copyToClipboard(text, successMsg) {
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(fullUrl).then(() => {
-            const btn = event && event.target ? event.target.closest('.room-copy-btn') : null;
-            if (btn) {
-                const original = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-check"></i> Скопировано';
-                setTimeout(() => btn.innerHTML = original, 2000);
-            }
+        navigator.clipboard.writeText(text).then(() => {
+            showCopySuccess(successMsg);
+        }).catch(() => {
+            fallbackCopy(text, successMsg);
         });
     } else {
-        const ta = document.createElement('textarea');
-        ta.value = fullUrl;
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); } catch(e) {}
-        document.body.removeChild(ta);
+        fallbackCopy(text, successMsg);
+    }
+}
+
+function fallbackCopy(text, successMsg) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showCopySuccess(successMsg); } catch(e) {}
+    document.body.removeChild(ta);
+}
+
+function showCopySuccess(msg) {
+    const btn = event && event.target ? event.target.closest('.room-copy-btn') : null;
+    if (btn) {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> Скопировано';
+        setTimeout(() => btn.innerHTML = original, 2000);
     }
 }
 
@@ -605,9 +748,15 @@ function leaveRoom() {
     }
     fbStateRef = null;
     localStorage.removeItem('pokerRoomCode');
+    localStorage.removeItem('pokerRole');
     roomCode = null;
+    isDealer = false;
+    document.body.classList.remove('role-dealer');
+    const topbar = document.getElementById('dealerTopbar');
+    if (topbar) topbar.style.display = 'none';
     updateRoomUI();
     updateSyncStatus('offline');
+    location.reload();
 }
 
 function skipRoom() {
@@ -623,6 +772,7 @@ function getRoomFromUrl() {
 
 // ===== РЕЖИМ ИГРЫ =====
 function selectGameMode(mode) {
+    if (isDealer) return;
     gameMode = mode;
     document.getElementById('gameModeOverlay').classList.remove('active');
     updateModeSwitchLabel();
@@ -632,6 +782,7 @@ function selectGameMode(mode) {
 }
 
 function openGameModeSelector() {
+    if (isDealer) return;
     document.querySelectorAll('.gamemode-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.mode === gameMode);
     });
@@ -677,23 +828,32 @@ function applyGameMode() {
 function updateAnteDisplay() {
     const anteBox = document.getElementById('anteBox');
     const anteScoreEl = document.getElementById('anteScore');
-    if (!anteBox || !anteScoreEl) return;
+    const dAnte = document.getElementById('dealerAnte');
     const cfg = GAME_MODES[gameMode];
-    if (!cfg) { anteBox.style.display = 'none'; return; }
+    const showAnte = cfg && cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level);
 
-    if (cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level)) {
-        anteBox.style.display = 'flex';
+    if (showAnte) {
         const anteValue = bbScore;
-        anteScoreEl.textContent = '+АНТЕ ' + formatBlind(anteValue);
         anteScore = anteValue;
+
+        if (anteBox && anteScoreEl) {
+            anteBox.style.display = 'flex';
+            anteScoreEl.textContent = '+АНТЕ ' + formatBlind(anteValue);
+        }
+        if (dAnte) {
+            dAnte.style.display = 'inline-block';
+            dAnte.textContent = '+АНТЕ ' + formatBlind(anteValue);
+        }
     } else {
-        anteBox.style.display = 'none';
         anteScore = 0;
+        if (anteBox) anteBox.style.display = 'none';
+        if (dAnte) dAnte.style.display = 'none';
     }
 }
 
 // ===== СТОЛЫ =====
 function addTable() {
+    if (isDealer) return;
     appData.tables.push(emptyTable());
     currentTableIndex = appData.tables.length - 1;
     renderTables();
@@ -704,6 +864,7 @@ function addTable() {
 }
 
 function removeTable() {
+    if (isDealer) return;
     if (appData.tables.length <= 1) return;
     const removedIndex = currentTableIndex;
     const table = appData.tables[removedIndex];
@@ -856,7 +1017,7 @@ let autoScrollTimer = null;
 let justDragged = false;
 
 const MOVE_THRESHOLD_MOUSE = 6;
-const MOVE_THRESHOLD_TOUCH = 10;
+const MOVE_THRESHOLD_TOUCH = 8;
 const EDGE_ZONE = 60;
 const AUTO_SCROLL_INTERVAL = 350;
 
@@ -874,7 +1035,8 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
             startX: e.clientX, startY: e.clientY,
             pointerId: e.pointerId,
             pointerType: e.pointerType,
-            isDragging: false
+            isDragging: false,
+            startTime: Date.now()
         };
         try { btn.setPointerCapture(e.pointerId); } catch (err) {}
     });
@@ -887,7 +1049,12 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
             const dx = Math.abs(e.clientX - pressState.startX);
             const dy = Math.abs(e.clientY - pressState.startY);
             const threshold = pressState.pointerType === 'touch' ? MOVE_THRESHOLD_TOUCH : MOVE_THRESHOLD_MOUSE;
-            if (dx > threshold || dy > threshold) beginDrag(e);
+            const elapsed = Date.now() - pressState.startTime;
+
+            // На тач: 100 мс или сдвиг больше порога — любой направление
+            if (dx > threshold || dy > threshold || (pressState.pointerType === 'touch' && elapsed > 100 && (dx > 3 || dy > 3))) {
+                beginDrag(e);
+            }
             return;
         }
 
@@ -1127,7 +1294,7 @@ function confirmPlayerName() {
         renderTables();
         updateAllUI();
         saveData();
-        checkBalance();
+        if (!isDealer) checkBalance();
     }
     closeNameModal();
 }
@@ -1170,7 +1337,7 @@ function eliminatePlayer(ti, si) {
     renderTables();
     updateAllUI();
     saveData();
-    checkBalance();
+    if (!isDealer) checkBalance();
 }
 
 function countAllUniquePlayers() {
@@ -1200,6 +1367,7 @@ function getImbalanceInfo() {
 }
 
 function checkBalance(silent = false) {
+    if (isDealer) return;   // у дилера нет окна дисбаланса
     const info = getImbalanceInfo();
     renderTables();
     const overlay = document.getElementById('imbalanceOverlay');
@@ -1240,6 +1408,7 @@ function updateTableIndicator() {
 
 // ===== ТАЙМЕР =====
 function startTimer() {
+    if (isDealer) return;
     if (timer.running) return;
     if (gameMode !== 'cash' && isFinalLevel(level)) return;
     const info = getImbalanceInfo();
@@ -1257,17 +1426,20 @@ function startTimer() {
 }
 
 function stopTimer() {
+    if (isDealer) return;
     stopTimerLocal();
     saveData();
 }
 
 function skipLevel() {
+    if (isDealer) return;
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
     nextLevel();
 }
 
 function nextLevel() {
+    if (isDealer) return;
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) {
         timer.totalSeconds = timer.maxSeconds;
@@ -1315,6 +1487,7 @@ function nextLevel() {
 }
 
 function prevLevel() {
+    if (isDealer) return;
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
     if (level > 1) {
@@ -1389,6 +1562,48 @@ function updateProgressBar() {
     else circle.style.stroke = 'var(--timer-progress)';
 }
 
+// ===== МИНИ-ТАЙМЕР ДЛЯ ДИЛЕРА =====
+function updateDealerTimer() {
+    if (!isDealer) return;
+    const levelEl = document.getElementById('dealerLevel');
+    const timeEl = document.getElementById('dealerTime');
+    const mbEl = document.getElementById('dealerMb');
+    const bbEl = document.getElementById('dealerBb');
+    const anteEl = document.getElementById('dealerAnte');
+
+    if (levelEl) {
+        if (isFinalLevel(level)) levelEl.textContent = `Уровень ${getLevelNumber(level)} (финал)`;
+        else if (isBreakLevel(level)) levelEl.textContent = 'ПЕРЕРЫВ';
+        else levelEl.textContent = `Уровень ${getLevelNumber(level)}`;
+    }
+
+    if (timeEl) {
+        if (isFinalLevel(level)) {
+            timeEl.textContent = '—';
+        } else {
+            const m = Math.floor(timer.totalSeconds / 60);
+            const s = timer.totalSeconds % 60;
+            timeEl.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            if (timer.totalSeconds <= 59 && timer.running) timeEl.classList.add('danger');
+            else timeEl.classList.remove('danger');
+        }
+    }
+
+    if (mbEl) mbEl.textContent = 'МБ ' + formatBlind(mbScore);
+    if (bbEl) bbEl.textContent = 'ББ ' + formatBlind(bbScore);
+
+    const cfg = GAME_MODES[gameMode];
+    const showAnte = cfg && cfg.ante && cfg.levels && getLevelNumber(level) >= 9 && !isBreakLevel(level);
+    if (anteEl) {
+        if (showAnte) {
+            anteEl.style.display = 'inline-block';
+            anteEl.textContent = '+АНТЕ ' + formatBlind(bbScore);
+        } else {
+            anteEl.style.display = 'none';
+        }
+    }
+}
+
 // ===== СЛЕДУЮЩИЙ УРОВЕНЬ =====
 function updateNextLevelOnly() {
     const el = document.getElementById('nextLevelOnly');
@@ -1458,6 +1673,8 @@ function updateAllUI() {
     updatePrizePool();
     updateEliminatedList();
     updateTotal();
+    updateDealerTimer();
+
     const mbEl = document.getElementById('mbScore');
     const bbEl = document.getElementById('bbScore');
     if (mbEl) mbEl.textContent = formatBlind(mbScore);
@@ -1494,11 +1711,13 @@ function updatePrizePool() {
 
     const sdr = document.getElementById('prizeDeductSide');
     const sdv = document.getElementById('prizeDeductSideVal');
-    if (deductTenPercent) {
-        sdr.style.display = 'flex';
-        sdv.textContent = formatNumber(deduct);
-    } else {
-        sdr.style.display = 'none';
+    if (sdr && sdv) {
+        if (deductTenPercent) {
+            sdr.style.display = 'flex';
+            sdv.textContent = formatNumber(deduct);
+        } else {
+            sdr.style.display = 'none';
+        }
     }
 
     const parts = calculateParts(display, currentOption);
@@ -1561,6 +1780,7 @@ function formatNumber(num) {
 
 // ===== МЕНЮ =====
 function toggleMenu() {
+    if (isDealer) return;
     document.getElementById('sidebar').classList.toggle('active');
     updatePrizePool();
 }
@@ -1571,7 +1791,6 @@ function initializeMenuSections() {
         if (!el) return;
         const arrow = el.parentElement.querySelector('.toggle-arrow');
 
-        // Секцию "Комната" показываем раскрытой, если есть roomCode
         let shouldExpand = menuExpanded[sec];
         if (sec === 'room' && roomCode) shouldExpand = true;
 
@@ -1594,6 +1813,7 @@ function initializeMenuSections() {
 }
 
 function toggleSection(id) {
+    if (isDealer) return;
     const el = document.getElementById(id + 'Section');
     if (!el) return;
     const arrow = el.parentElement.querySelector('.toggle-arrow');
@@ -1610,6 +1830,7 @@ function toggleSection(id) {
 }
 
 function selectMultiplier(m) {
+    if (isDealer) return;
     currentMultiplier = m;
     document.querySelectorAll('.multiplier-btn').forEach(b => b.classList.remove('active'));
     if (event && event.target) event.target.classList.add('active');
@@ -1619,6 +1840,7 @@ function selectMultiplier(m) {
 }
 
 function applyCustomMultiplier() {
+    if (isDealer) return;
     const v = parseInt(document.getElementById('customMultiplier').value);
     if (v > 0) {
         currentMultiplier = v;
@@ -1629,12 +1851,14 @@ function applyCustomMultiplier() {
 }
 
 function toggleDeductTenPercent() {
+    if (isDealer) return;
     deductTenPercent = document.getElementById('deductTenPercent').checked;
     updatePrizePool();
     saveData();
 }
 
 function selectOption(opt) {
+    if (isDealer) return;
     currentOption = opt;
     document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active'));
     if (event && event.target) event.target.closest('.option-btn').classList.add('active');
@@ -1644,6 +1868,7 @@ function selectOption(opt) {
 
 // ===== СБРОС =====
 function resetAll() {
+    if (isDealer) return;
     stopTimerLocal();
     document.querySelector('.main-layout')?.classList.remove('focus-timer');
 

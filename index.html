@@ -12,7 +12,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getDatabase, ref, onValue, set, get, off }
             from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-    
+
         const firebaseConfig = {
             apiKey: "AIzaSyBHxDSZv7l17FVkJLFO4TNyFy5QYnTlkMo",
             authDomain: "mrpoker-65c2a.firebaseapp.com",
@@ -22,16 +22,17 @@
             messagingSenderId: "601586399037",
             appId: "1:601586399037:web:2ba9891d9d56b51b1f3754"
         };
-    
+
         const fbApp = initializeApp(firebaseConfig);
         const fbDB = getDatabase(fbApp);
-    
+
         window.fb = { db: fbDB, ref, onValue, set, get, off };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
 <body>
-    <div class="burger-menu">
+    <!-- БУРГЕР -->
+    <div class="burger-menu" id="burgerMenu">
         <button class="burger-btn" onclick="toggleMenu()">
             <div class="burger-line"></div>
             <div class="burger-line"></div>
@@ -39,7 +40,7 @@
         </button>
     </div>
 
-    <!-- ГЛАВНОЕ МЕНЮ ВЫБОРА РЕЖИМА -->
+    <!-- ГЛАВНОЕ МЕНЮ РЕЖИМА -->
     <div class="gamemode-overlay" id="gameModeOverlay">
         <div class="gamemode-content">
             <h1>Выберите вид игры</h1>
@@ -69,11 +70,11 @@
             <div class="room-buttons">
                 <button class="room-btn room-btn-create" onclick="createRoom()">
                     <i class="fas fa-plus-circle"></i>
-                    <span>Создать комнату</span>
+                    <span>Создать комнату (хост)</span>
                 </button>
                 <button class="room-btn room-btn-join" onclick="openJoinRoom()">
                     <i class="fas fa-sign-in-alt"></i>
-                    <span>Присоединиться</span>
+                    <span>Присоединиться как хост</span>
                 </button>
             </div>
             <div class="room-join-form" id="roomJoinForm" style="display:none;">
@@ -99,9 +100,26 @@
         </div>
     </div>
 
+    <!-- МИНИ-ТАЙМЕР ДЛЯ ДИЛЕРА -->
+    <div class="dealer-topbar" id="dealerTopbar" style="display:none;">
+        <div class="dealer-timer-row">
+            <span class="dealer-level" id="dealerLevel">Уровень 1</span>
+            <span class="dealer-time" id="dealerTime">15:00</span>
+        </div>
+        <div class="dealer-blinds-row" id="dealerBlindsRow">
+            <span class="dealer-blind dealer-blind-mb" id="dealerMb">МБ 100</span>
+            <span class="dealer-blind dealer-blind-bb" id="dealerBb">ББ 100</span>
+            <span class="dealer-blind dealer-blind-ante" id="dealerAnte" style="display:none;">+АНТЕ 0</span>
+        </div>
+        <div class="dealer-sync">
+            <span class="sync-dot" id="dealerSyncDot"></span>
+            <span id="dealerSyncText">Синхронизация…</span>
+        </div>
+    </div>
+
     <div class="main-layout">
         <!-- ЛЕВАЯ ПАНЕЛЬ -->
-        <div class="left-panel">
+        <div class="left-panel" id="leftPanel">
             <div class="timer-section">
                 <div class="timer-center">
                     <div class="timer-wrapper">
@@ -160,7 +178,7 @@
         </div>
 
         <!-- ПРАВАЯ ПАНЕЛЬ -->
-        <div class="right-panel">
+        <div class="right-panel" id="rightPanel">
             <div class="tables-album">
                 <button class="album-arrow album-prev" onclick="prevTable()">
                     <i class="fas fa-chevron-left"></i>
@@ -171,7 +189,7 @@
                 <button class="album-arrow album-next" onclick="nextTable()">
                     <i class="fas fa-chevron-right"></i>
                 </button>
-                <div class="album-add-remove">
+                <div class="album-add-remove" id="albumAddRemove">
                     <button class="album-arrow album-add" id="addTableBtn" onclick="addTable()" title="Добавить стол">
                         <i class="fas fa-plus"></i>
                     </button>
@@ -235,7 +253,10 @@
                         <span class="room-code" id="roomCodeDisplay">—</span>
                     </div>
                     <button class="room-copy-btn" onclick="copyRoomCode()">
-                        <i class="fas fa-copy"></i> Скопировать ссылку
+                        <i class="fas fa-copy"></i> Ссылка для хоста
+                    </button>
+                    <button class="room-copy-btn room-copy-dealer" onclick="copyDealerLink()">
+                        <i class="fas fa-user-tie"></i> Ссылка для дилера
                     </button>
                 </div>
                 <div class="room-sync-status" id="roomSyncStatus">
