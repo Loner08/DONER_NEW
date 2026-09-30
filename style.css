@@ -173,6 +173,91 @@ html[data-theme="sport"] {
     --number-btn-bg-has-name: linear-gradient(145deg, #4a4f58, #393E46);
 }
 
+/* 5. РОДНАЯ (исходная палитра) */
+html[data-theme="native"] {
+    --bg-body: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --bg-panel: rgba(255, 255, 255, 0.95);
+    --bg-card: #ffffff;
+    --bg-card-alt: #f8f9fa;
+    --bg-total: linear-gradient(135deg, #f8f9fa, #e9ecef);
+
+    --accent-primary: #3498db;
+    --accent-secondary: #e74c3c;
+    --accent-danger: #e74c3c;
+    --accent-info: #2980b9;
+
+    --text-main: #2c3e50;
+    --text-dim: #7f8c8d;
+    --text-on-accent: #ffffff;
+
+    --border-soft: rgba(0, 0, 0, 0.08);
+    --border-card: rgba(52, 152, 219, 0.35);
+
+    --blind-mb-bg: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    --blind-bb-bg: linear-gradient(135deg, #4a69bd, #1e3799);
+    --blind-ante-bg: linear-gradient(135deg, #16a085, #0e6655);
+
+    --timer-track: #ecf0f1;
+    --timer-progress: #2ecc71;
+
+    --btn-start: #2ecc71;
+    --btn-stop: #e74c3c;
+    --btn-skip: #3498db;
+    --btn-prev: #9b59b6;
+
+    --divider: rgba(0, 0, 0, 0.08);
+
+    --body-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --panel-overlay: rgba(255, 255, 255, 0.78);
+    --table-card-bg: #f8f9fa;
+    --number-btn-bg: linear-gradient(145deg, #ffffff, #f0f0f0);
+    --number-btn-bg-has-name: linear-gradient(145deg, #f0fff4, #d4edda);
+    --table-indicator-bg: linear-gradient(to right, #f8f9fa, #e9ecef);
+    --table-indicator-text: #2c3e50;
+}
+
+/* 6. ГОЛУБО-СИНЯЯ */
+html[data-theme="blue"] {
+    --bg-body: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    --bg-panel: rgba(21, 51, 100, 0.85);
+    --bg-card: #1a3a6e;
+    --bg-card-alt: #244a85;
+    --bg-total: linear-gradient(135deg, #1a3a6e, #244a85);
+
+    --accent-primary: #ffffff;
+    --accent-secondary: #cfe2ff;
+    --accent-danger: #ff6b6b;
+    --accent-info: #cfe2ff;
+
+    --text-main: #ffffff;
+    --text-dim: #cfe2ff;
+    --text-on-accent: #1e3c72;
+
+    --border-soft: rgba(255, 255, 255, 0.15);
+    --border-card: rgba(255, 255, 255, 0.3);
+
+    --blind-mb-bg: linear-gradient(135deg, #3b82f6, #1e40af);
+    --blind-bb-bg: linear-gradient(135deg, #1e40af, #0f2461);
+    --blind-ante-bg: linear-gradient(135deg, #0ea5e9, #075985);
+
+    --timer-track: rgba(255, 255, 255, 0.12);
+    --timer-progress: #ffffff;
+
+    --btn-start: #ffffff;
+    --btn-stop: #ff6b6b;
+    --btn-skip: #93c5fd;
+    --btn-prev: #cfe2ff;
+
+    --divider: rgba(255, 255, 255, 0.15);
+
+    --body-gradient: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    --panel-overlay: rgba(21, 51, 100, 0.7);
+    --table-card-bg: rgba(26, 58, 110, 0.85);
+    --number-btn-bg: linear-gradient(145deg, #244a85, #1a3a6e);
+    --number-btn-bg-has-name: linear-gradient(145deg, #1e40af, #15306e);
+    --table-indicator-bg: linear-gradient(to right, #1a3a6e, #244a85);
+    --table-indicator-text: #ffffff;
+}
 /* ===== ОСНОВНОЕ ===== */
 body {
     background: var(--body-gradient);
@@ -604,11 +689,11 @@ body.touch-drag-active .album-arrow {
 .table-indicator {
     text-align: center;
     font-size: 18px;
-    color: var(--text-main);
+    color: var(--table-indicator-text, var(--text-main));
     font-weight: bold;
     margin-top: 2px;
     padding: 8px 20px;
-    background: var(--bg-panel);
+    background: var(--table-indicator-bg, var(--bg-panel));
     border-radius: 12px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     border: 1px solid var(--border-soft);
@@ -823,6 +908,8 @@ body.touch-drag-active .album-arrow {
 .swatch-casino { background: linear-gradient(135deg, #F4B41A 50%, #0F3E2B 50%); }
 .swatch-cyber { background: linear-gradient(135deg, #00F5D4 50%, #0B132B 50%); }
 .swatch-sport { background: linear-gradient(135deg, #FD7014 50%, #222831 50%); }
+.swatch-native { background: linear-gradient(135deg, #667eea 50%, #764ba2 50%); }
+.swatch-blue { background: linear-gradient(135deg, #ffffff 50%, #1e3c72 50%); }
 
 .auto-calculation { border-color: #2ecc71; }
 .distribution-section { border-color: #f39c12; }

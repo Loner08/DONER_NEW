@@ -102,7 +102,7 @@ const GAME_MODE_NAMES = {
 
 // ===== ТЕМЫ =====
 function setTheme(name) {
-    const themes = ['vegas', 'casino', 'cyber', 'sport'];
+    const themes = ['vegas', 'casino', 'cyber', 'sport', 'native', 'blue'];
     if (!themes.includes(name)) return;
     document.documentElement.setAttribute('data-theme', name);
     try { localStorage.setItem('pokerTheme', name); } catch(e) {}
