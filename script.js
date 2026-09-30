@@ -278,26 +278,48 @@ function saveDataLocalOnly() {
 // ===== СИНХРОНИЗАЦИЯ С FIREBASE =====
 function pushToFirebase() {
     if (!window.fb || !roomCode) return;
-    const { db, ref, set } = window.fb;
+    const { db, ref, get, set } = window.fb;
     const stateRef = ref(db, 'rooms/' + roomCode + '/state');
-    lastWriteTs = Date.now();
-    set(stateRef, {
-        clientId: clientId,
-        ts: lastWriteTs,
-        appData: appData,
-        timer: {
-            totalSeconds: timer.totalSeconds,
-            maxSeconds: timer.maxSeconds,
-            running: timer.running
-        },
-        level: level,
-        mbScore: mbScore,
-        bbScore: bbScore,
-        anteScore: anteScore,
-        gameMode: gameMode,
-        theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+
+    // Сначала считываем актуальное состояние с сервера
+    get(stateRef).then((snapshot) => {
+        const remote = snapshot.val();
+
+        // Если на сервере более свежая версия от другого клиента —
+        // применяем её к себе и НЕ перезаписываем
+        if (remote && remote.ts && lastWriteTs && remote.ts > lastWriteTs && remote.clientId !== clientId) {
+            isApplyingRemote = true;
+            try {
+                applyRemoteState(remote);
+            } finally {
+                isApplyingRemote = false;
+            }
+            return;   // не перезаписываем
+        }
+
+        // Иначе — пишем своё состояние
+        lastWriteTs = Date.now();
+        set(stateRef, {
+            clientId: clientId,
+            ts: lastWriteTs,
+            appData: appData,
+            timer: {
+                totalSeconds: timer.totalSeconds,
+                maxSeconds: timer.maxSeconds,
+                running: timer.running
+            },
+            level: level,
+            mbScore: mbScore,
+            bbScore: bbScore,
+            anteScore: anteScore,
+            gameMode: gameMode,
+            theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+        }).catch(err => {
+            console.warn('Firebase write error:', err);
+            updateSyncStatus('offline');
+        });
     }).catch(err => {
-        console.warn('Firebase write error:', err);
+        console.warn('Firebase get error:', err);
         updateSyncStatus('offline');
     });
 }
@@ -322,9 +344,10 @@ function connectToRoom(code) {
             return;
         }
         if (data.clientId === clientId) return;
-
-        // Игнорируем устаревшие данные — свои всегда свежее
         if (data.ts && lastWriteTs && data.ts < lastWriteTs) return;
+
+        // Обновляем lastWriteTs, чтобы знали, что на сервере свежие данные
+        if (data.ts) lastWriteTs = data.ts;
 
         isApplyingRemote = true;
         try {
@@ -1622,5 +1645,5 @@ document.addEventListener('keydown', e => {
     }
 });
 
-setInterval(saveDataLocalOnly, 5000);
+
 window.addEventListener('beforeunload', saveDataLocalOnly);

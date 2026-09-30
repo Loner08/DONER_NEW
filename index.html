@@ -10,9 +10,9 @@
     <!-- Firebase SDK (module) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getDatabase, ref, onValue, set, off }
+        import { getDatabase, ref, onValue, set, get, off }
             from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
+    
         const firebaseConfig = {
             apiKey: "AIzaSyBHxDSZv7l17FVkJLFO4TNyFy5QYnTlkMo",
             authDomain: "mrpoker-65c2a.firebaseapp.com",
@@ -22,11 +22,11 @@
             messagingSenderId: "601586399037",
             appId: "1:601586399037:web:2ba9891d9d56b51b1f3754"
         };
-
+    
         const fbApp = initializeApp(firebaseConfig);
         const fbDB = getDatabase(fbApp);
-
-        window.fb = { db: fbDB, ref, onValue, set, off };
+    
+        window.fb = { db: fbDB, ref, onValue, set, get, off };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
 </head>
