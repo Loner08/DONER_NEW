@@ -63,31 +63,19 @@
     </div>
 
     <!-- ОВЕРЛЕЙ ВЫБОРА КОМНАТЫ -->
-    <div class="room-overlay" id="roomOverlay">
-        <div class="room-content">
-            <h1>👥 Синхронизация</h1>
-            <p class="room-hint">Создайте новую комнату или присоединитесь к существующей, чтобы играть с нескольких устройств.</p>
-            <div class="room-buttons">
-                <button class="room-btn room-btn-create" onclick="createRoom()">
-                    <i class="fas fa-plus-circle"></i>
-                    <span>Создать комнату (хост)</span>
-                </button>
-                <button class="room-btn room-btn-join" onclick="openJoinRoom()">
-                    <i class="fas fa-sign-in-alt"></i>
-                    <span>Присоединиться как хост</span>
-                </button>
-            </div>
-            <div class="room-join-form" id="roomJoinForm" style="display:none;">
-                <input type="text" id="roomJoinInput" class="room-input" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off">
-                <div class="room-join-actions">
-                    <button class="room-btn room-btn-cancel" onclick="closeJoinRoom()">Отмена</button>
-                    <button class="room-btn room-btn-confirm" onclick="joinRoom()">Войти</button>
-                </div>
-                <div class="room-error" id="roomJoinError" style="display:none;"></div>
-            </div>
-            <button class="room-skip" onclick="skipRoom()">Работать без синхронизации</button>
+<div class="room-overlay" id="roomOverlay">
+    <div class="room-content">
+        <h1>👥 Синхронизация</h1>
+        <p class="room-hint">Создайте комнату, чтобы играть с нескольких устройств.<br>Дилерам отправьте ссылку из блока «Комната».</p>
+        <div class="room-buttons">
+            <button class="room-btn room-btn-create" onclick="createRoom()">
+                <i class="fas fa-plus-circle"></i>
+                <span>Создать комнату</span>
+            </button>
         </div>
+        <button class="room-skip" onclick="skipRoom()">Работать без синхронизации</button>
     </div>
+</div>
 
     <!-- ОВЕРЛЕЙ ДИСБАЛАНСА -->
     <div class="imbalance-overlay" id="imbalanceOverlay">
@@ -241,33 +229,30 @@
         </button>
 
         <!-- КОМНАТА -->
-        <div class="menu-section room-section" id="roomSection" style="display:none;">
-            <div class="section-header" onclick="toggleSection('room')">
-                <h3><i class="fas fa-users"></i> Комната</h3>
-                <span class="toggle-arrow">▼</span>
+<div class="menu-section room-section" id="roomSection" style="display:none;">
+    <div class="section-header" onclick="toggleSection('room')">
+        <h3><i class="fas fa-users"></i> Комната</h3>
+        <span class="toggle-arrow">▼</span>
+    </div>
+    <div class="section-content" id="roomSectionContent">
+        <div class="room-status">
+            <div class="room-code-row">
+                <span class="room-code-label">Код:</span>
+                <span class="room-code" id="roomCodeDisplay">—</span>
             </div>
-            <div class="section-content" id="roomSectionContent">
-                <div class="room-status">
-                    <div class="room-code-row">
-                        <span class="room-code-label">Код:</span>
-                        <span class="room-code" id="roomCodeDisplay">—</span>
-                    </div>
-                    <button class="room-copy-btn" onclick="copyRoomCode()">
-                        <i class="fas fa-copy"></i> Ссылка для хоста
-                    </button>
-                    <button class="room-copy-btn room-copy-dealer" onclick="copyDealerLink()">
-                        <i class="fas fa-user-tie"></i> Ссылка для дилера
-                    </button>
-                </div>
-                <div class="room-sync-status" id="roomSyncStatus">
-                    <span class="sync-dot" id="syncDot"></span>
-                    <span id="syncText">Не подключено</span>
-                </div>
-                <button class="room-leave-btn" onclick="leaveRoom()">
-                    <i class="fas fa-sign-out-alt"></i> Выйти из комнаты
-                </button>
-            </div>
+            <button class="room-copy-btn room-copy-dealer" onclick="copyDealerLink()">
+                <i class="fas fa-user-tie"></i> Ссылка для дилера
+            </button>
         </div>
+        <div class="room-sync-status" id="roomSyncStatus">
+            <span class="sync-dot" id="syncDot"></span>
+            <span id="syncText">Не подключено</span>
+        </div>
+        <button class="room-leave-btn" onclick="leaveRoom()">
+            <i class="fas fa-sign-out-alt"></i> Выйти из комнаты
+        </button>
+    </div>
+</div>
 
         <!-- ТЕМА -->
         <div class="menu-section theme-section">

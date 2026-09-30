@@ -635,73 +635,14 @@ function createRoom() {
     });
 }
 
-function openJoinRoom() {
-    document.getElementById('roomJoinForm').style.display = 'flex';
-    document.getElementById('roomJoinError').style.display = 'none';
-    document.getElementById('roomJoinInput').value = '';
-    setTimeout(() => document.getElementById('roomJoinInput').focus(), 100);
-}
+function openJoinRoom() {}
+function closeJoinRoom() {}
+function joinRoom() {}
 
-function closeJoinRoom() {
-    document.getElementById('roomJoinForm').style.display = 'none';
-}
-
-function joinRoom() {
-    if (isDealer) return;
-    waitForFirebase().then(() => {
-        if (!window.fb) return;
-        fbReady = true;
-
-        const code = (document.getElementById('roomJoinInput').value || '').trim().toUpperCase();
-        const errEl = document.getElementById('roomJoinError');
-
-        if (code.length !== 6) {
-            errEl.textContent = 'Код должен состоять из 6 символов.';
-            errEl.style.display = 'block';
-            return;
-        }
-
-        updateSyncStatus('connecting');
-        const { db, ref, onValue } = window.fb;
-        const checkRef = ref(db, 'rooms/' + code + '/state');
-        let resolved = false;
-
-        const unsub = onValue(checkRef, (snapshot) => {
-            if (resolved) return;
-            resolved = true;
-            const data = snapshot.val();
-            if (!data) {
-                errEl.textContent = 'Комната не найдена. Проверьте код.';
-                errEl.style.display = 'block';
-                updateSyncStatus('offline');
-                unsub();
-                return;
-            }
-            unsub();
-            localStorage.setItem('pokerRoomCode', code);
-            localStorage.setItem('pokerRole', 'host');
-            roomCode = code;
-            document.getElementById('roomOverlay').classList.remove('active');
-            updateRoomUI(true);
-            connectToRoom(code);
-        });
-
-        setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                try { unsub(); } catch(e) {}
-                errEl.textContent = 'Не удалось подключиться. Проверьте интернет.';
-                errEl.style.display = 'block';
-                updateSyncStatus('offline');
-            }
-        }, 5000);
-    });
-}
-
-function copyRoomCode() {
+function copyDealerLink() {
     if (!roomCode) return;
-    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=host';
-    copyToClipboard(fullUrl, 'Ссылка для хоста скопирована');
+    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=dealer';
+    copyToClipboard(fullUrl, 'Ссылка для дилера скопирована');
 }
 
 function copyDealerLink() {
