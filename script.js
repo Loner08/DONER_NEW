@@ -36,7 +36,6 @@ let mbScore = 100;
 let bbScore = 100;
 let anteScore = 0;
 
-// Все секции меню закрыты по умолчанию
 let menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
 
 // ===== СИНХРОНИЗАЦИЯ =====
@@ -189,6 +188,12 @@ window.onload = function() {
     loadData();
     restoreTimerAfterReload();
 
+    // ВАЖНО: roomCode устанавливается ДО отрисовки меню,
+    // чтобы секция "Комната" была раскрыта сразу
+    const urlRoom = getRoomFromUrl();
+    roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
+    if (roomCode) localStorage.setItem('pokerRoomCode', roomCode);
+
     renderTables();
     initializeMenuSections();
     updateAddRemoveButtons();
@@ -196,18 +201,19 @@ window.onload = function() {
     updateThemeButtons();
     updateRoomUI();
 
-    const urlRoom = getRoomFromUrl();
-    roomCode = urlRoom || localStorage.getItem('pokerRoomCode') || null;
+    // Подключаемся к Firebase, если комната есть и fb готов
+    if (roomCode && fbReady) {
+        connectToRoom(roomCode);
+    }
 
+    // Показываем оверлей выбора комнаты, если её нет
     if (!roomCode) {
         setTimeout(() => {
             document.getElementById('roomOverlay').classList.add('active');
         }, 200);
-    } else {
-        localStorage.setItem('pokerRoomCode', roomCode);
-        if (fbReady) connectToRoom(roomCode);
     }
 
+    // Показываем оверлей выбора режима
     if (!gameMode) {
         document.getElementById('gameModeOverlay').classList.add('active');
         updateAllUI();
@@ -451,15 +457,19 @@ function updateRoomUI(openSidebar = false) {
     if (codeEl) codeEl.textContent = roomCode || '—';
 
     const section = document.getElementById('roomSection');
-    if (section) section.style.display = 'block';  // всегда видно
+    if (section) section.style.display = 'block';   // всегда видно
 
-    if (roomCode && openSidebar) {
+    // Раскрываем секцию, если есть комната
+    if (roomCode) {
         const content = document.getElementById('roomSectionContent');
         if (content) {
             content.classList.add('expanded');
             const arrow = content.parentElement.querySelector('.toggle-arrow');
             if (arrow) arrow.style.transform = 'rotate(180deg)';
         }
+    }
+
+    if (roomCode && openSidebar) {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.classList.add('active');
     }
@@ -1254,7 +1264,6 @@ function stopTimer() {
 function skipLevel() {
     const cfg = GAME_MODES[gameMode];
     if (cfg && cfg.levels === false) return;
-    // Не останавливаем таймер — просто переходим на следующий
     nextLevel();
 }
 
@@ -1561,7 +1570,12 @@ function initializeMenuSections() {
         const el = document.getElementById(sec + 'Section');
         if (!el) return;
         const arrow = el.parentElement.querySelector('.toggle-arrow');
-        if (menuExpanded[sec]) {
+
+        // Секцию "Комната" показываем раскрытой, если есть roomCode
+        let shouldExpand = menuExpanded[sec];
+        if (sec === 'room' && roomCode) shouldExpand = true;
+
+        if (shouldExpand) {
             el.classList.add('expanded');
             if (arrow) arrow.style.transform = 'rotate(180deg)';
         } else {
