@@ -191,16 +191,10 @@ window.onload = function() {
         isDealer = false;
         localStorage.setItem('pokerRole', 'host');
     } else {
-        // Нет параметра — берём из localStorage
         isDealer = localStorage.getItem('pokerRole') === 'dealer';
     }
 
-    // Проверяем, есть ли комната
-    const urlRoom = getRoomFromUrl();
-    const savedRoom = localStorage.getItem('pokerRoomCode');
-    const hasRoom = !!(urlRoom || savedRoom);
-
-    // Firebase инициализация
+    // Firebase init
     if (window.fb) {
         fbReady = true;
     } else {
@@ -213,7 +207,9 @@ window.onload = function() {
     loadData();
     restoreTimerAfterReload();
 
-    // Устанавливаем комнату
+    const urlRoom = getRoomFromUrl();
+    const savedRoom = localStorage.getItem('pokerRoomCode');
+    const hasRoom = !!(urlRoom || savedRoom);
     roomCode = urlRoom || savedRoom || null;
     if (roomCode) localStorage.setItem('pokerRoomCode', roomCode);
 
@@ -224,7 +220,7 @@ window.onload = function() {
     updateThemeButtons();
     updateRoomUI();
 
-    // Дилер без комнаты — показываем оверлей с формой ввода кода
+    // Дилер без комнаты — показываем оверлей ввода кода
     if (isDealer && !roomCode) {
         document.body.classList.add('role-dealer');
         const topbar = document.getElementById('dealerTopbar');
@@ -237,7 +233,7 @@ window.onload = function() {
         return;
     }
 
-    // Дилер с комнатой — сразу включаем дилерский интерфейс
+    // Дилер с комнатой
     if (isDealer && roomCode) {
         document.body.classList.add('role-dealer');
         const topbar = document.getElementById('dealerTopbar');
@@ -249,7 +245,7 @@ window.onload = function() {
         connectToRoom(roomCode);
     }
 
-    // Оверлей выбора комнаты — если её нет и мы не дилер
+    // Оверлей выбора комнаты — только если нет и мы не дилер
     if (!roomCode && !isDealer) {
         setTimeout(() => {
             document.getElementById('roomOverlay').classList.add('active');
@@ -358,51 +354,34 @@ function saveDataLocalOnly() {
 // ===== СИНХРОНИЗАЦИЯ С FIREBASE =====
 function pushToFirebase() {
     if (!window.fb || !roomCode) return;
-    const { db, ref, set } = window.fb;
+    const { db, ref, set, update } = window.fb;
     const stateRef = ref(db, 'rooms/' + roomCode + '/state');
+    lastWriteTs = Date.now();
 
-    // Дилер отправляет ТОЛЬКО appData + clientId + ts,
-    // не перезаписывая timer/level/theme/gameMode
+    // Дилер отправляет ТОЛЬКО appData, не трогая timer/level/theme/gameMode
     if (isDealer) {
-        const update = {
-            clientId: clientId,
-            ts: Date.now(),
-            appData: appData
-        };
-        lastWriteTs = update.ts;
-        // Используем update вместо set, чтобы не затирать другие поля
-        const { update: fbUpdate } = window.fb;
-        if (fbUpdate) {
-            fbUpdate(stateRef, update).catch(err => {
+        if (update) {
+            update(stateRef, {
+                clientId: clientId,
+                ts: lastWriteTs,
+                appData: appData
+            }).catch(err => {
                 console.warn('Firebase update error:', err);
                 updateSyncStatus('offline');
             });
         } else {
-            // fallback: set весь state
+            // Fallback
             set(stateRef, {
                 clientId: clientId,
-                ts: update.ts,
-                appData: appData,
-                timer: {
-                    totalSeconds: timer.totalSeconds,
-                    maxSeconds: timer.maxSeconds,
-                    running: timer.running,
-                    startedAt: timerStartedAt,
-                    secondsAtStart: timerSecondsAtStart
-                },
-                level: level,
-                mbScore: mbScore,
-                bbScore: bbScore,
-                anteScore: anteScore,
-                gameMode: gameMode,
-                theme: document.documentElement.getAttribute('data-theme') || 'vegas'
+                ts: lastWriteTs,
+                appData: appData
             }).catch(err => {
                 console.warn('Firebase write error:', err);
                 updateSyncStatus('offline');
             });
         }
     } else {
-        lastWriteTs = Date.now();
+        // Хост отправляет всё
         set(stateRef, {
             clientId: clientId,
             ts: lastWriteTs,
@@ -443,10 +422,11 @@ function connectToRoom(code) {
         updateSyncStatus('online');
 
         if (!data) {
-            // Комната пустая — только хост пишет начальное состояние
             if (!isDealer) pushToFirebase();
             return;
         }
+
+        // Игнорируем свои же записи
         if (data.clientId === clientId) return;
 
         isApplyingRemote = true;
@@ -466,68 +446,36 @@ function applyRemoteState(data) {
 
     if (data.ts) lastWriteTs = Math.max(lastWriteTs, data.ts);
 
-    // Обновляем appData у всех
     if (data.appData) appData = data.appData;
 
-    // Таймер, уровень и тему обновляет только хост
-    if (!isDealer) {
-        if (data.timer) {
-            const wasRunning = timer.running;
+    if (data.timer) {
+        const wasRunning = timer.running;
 
-            if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
-                const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
-                timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
-            } else {
-                timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
-            }
-            timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
-            timer.running = !!data.timer.running;
-            timerStartedAt = data.timer.startedAt || 0;
-            timerSecondsAtStart = data.timer.secondsAtStart || 0;
-
-            if (timer.running && !wasRunning) startTimerLocal();
-            else if (!timer.running && wasRunning) stopTimerLocal();
+        if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
+            const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
+            timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
+        } else {
+            timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
         }
+        timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
+        timer.running = !!data.timer.running;
+        timerStartedAt = data.timer.startedAt || 0;
+        timerSecondsAtStart = data.timer.secondsAtStart || 0;
 
-        if (typeof data.level === 'number') level = data.level;
-        if (typeof data.mbScore === 'number') mbScore = data.mbScore;
-        if (typeof data.bbScore === 'number') bbScore = data.bbScore;
-        if (typeof data.anteScore === 'number') anteScore = data.anteScore;
-        if (typeof data.gameMode === 'string') gameMode = data.gameMode;
+        if (timer.running && !wasRunning) startTimerLocal();
+        else if (!timer.running && wasRunning) stopTimerLocal();
+    }
 
-        if (data.theme) {
-            document.documentElement.setAttribute('data-theme', data.theme);
-            try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
-            updateThemeButtons();
-        }
-    } else {
-        // Дилер всё равно видит блайнды и уровень (только для отображения)
-        if (typeof data.level === 'number') level = data.level;
-        if (typeof data.mbScore === 'number') mbScore = data.mbScore;
-        if (typeof data.bbScore === 'number') bbScore = data.bbScore;
-        if (typeof data.anteScore === 'number') anteScore = data.anteScore;
-        if (data.timer) {
-            const wasRunning = timer.running;
-            if (data.timer.running && data.timer.startedAt && data.timer.secondsAtStart != null) {
-                const elapsed = Math.floor((Date.now() - data.timer.startedAt) / 1000);
-                timer.totalSeconds = Math.max(0, data.timer.secondsAtStart - elapsed);
-            } else {
-                timer.totalSeconds = data.timer.totalSeconds ?? timer.totalSeconds;
-            }
-            timer.maxSeconds = data.timer.maxSeconds ?? timer.maxSeconds;
-            timer.running = !!data.timer.running;
-            timerStartedAt = data.timer.startedAt || 0;
-            timerSecondsAtStart = data.timer.secondsAtStart || 0;
+    if (typeof data.level === 'number') level = data.level;
+    if (typeof data.mbScore === 'number') mbScore = data.mbScore;
+    if (typeof data.bbScore === 'number') bbScore = data.bbScore;
+    if (typeof data.anteScore === 'number') anteScore = data.anteScore;
+    if (typeof data.gameMode === 'string') gameMode = data.gameMode;
 
-            if (timer.running && !wasRunning) startTimerLocal();
-            else if (!timer.running && wasRunning) stopTimerLocal();
-
-            if (data.theme) {
-                document.documentElement.setAttribute('data-theme', data.theme);
-                try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
-                updateThemeButtons();
-            }
-        }
+    if (data.theme) {
+        document.documentElement.setAttribute('data-theme', data.theme);
+        try { localStorage.setItem('pokerTheme', data.theme); } catch(e) {}
+        updateThemeButtons();
     }
 
     renderTables();
@@ -576,7 +524,6 @@ function updateSyncStatus(status) {
         }
     }
 
-    // У дилера — отдельный индикатор
     const dDot = document.getElementById('dealerSyncDot');
     const dText = document.getElementById('dealerSyncText');
     if (dDot && dText) {
@@ -654,14 +601,20 @@ function createRoom() {
 }
 
 function openJoinRoom() {
-    document.getElementById('roomJoinForm').style.display = 'flex';
-    document.getElementById('roomJoinError').style.display = 'none';
-    document.getElementById('roomJoinInput').value = '';
-    setTimeout(() => document.getElementById('roomJoinInput').focus(), 100);
+    const form = document.getElementById('roomJoinForm');
+    if (form) form.style.display = 'flex';
+    const errEl = document.getElementById('roomJoinError');
+    if (errEl) errEl.style.display = 'none';
+    const input = document.getElementById('roomJoinInput');
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 100);
+    }
 }
 
 function closeJoinRoom() {
-    document.getElementById('roomJoinForm').style.display = 'none';
+    const form = document.getElementById('roomJoinForm');
+    if (form) form.style.display = 'none';
 }
 
 // Присоединение дилера по введённому коду
@@ -708,11 +661,11 @@ function joinRoomAsDealer() {
             const topbar = document.getElementById('dealerTopbar');
             if (topbar) topbar.style.display = 'flex';
 
-            // Скрываем оверлеи
             document.getElementById('roomOverlay').classList.remove('active');
             const gameOverlay = document.getElementById('gameModeOverlay');
             if (gameOverlay) gameOverlay.classList.remove('active');
 
+            renderTables();
             updateRoomUI(true);
             connectToRoom(code);
             updateAllUI();
@@ -730,21 +683,20 @@ function joinRoomAsDealer() {
     });
 }
 
+function copyRoomCodeOnly() {
+    if (!roomCode) return;
+    copyToClipboard(roomCode, 'Код скопирован');
+}
+
+function copyDealerLink() {
+    if (!roomCode) return;
+    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=dealer';
+    copyToClipboard(fullUrl, 'Ссылка для дилера скопирована');
+}
+
+// Устаревшая функция — оставлена для совместимости
 function copyRoomCode() {
-    // устаревшая, оставлена для совместимости
     copyRoomCodeOnly();
-}
-
-function copyDealerLink() {
-    if (!roomCode) return;
-    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=dealer';
-    copyToClipboard(fullUrl, 'Ссылка для дилера скопирована');
-}
-
-function copyDealerLink() {
-    if (!roomCode) return;
-    const fullUrl = location.origin + location.pathname + '?room=' + roomCode + '&role=dealer';
-    copyToClipboard(fullUrl, 'Ссылка для дилера скопирована');
 }
 
 function copyToClipboard(text, successMsg) {
@@ -963,13 +915,24 @@ function renderTables() {
             grid.appendChild(createSeatButton(ti, si));
         }
 
+        // У дилера добавляем 10-й пустой слот для сетки 2×5
+        if (isDealer) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'number-btn extra-slot';
+            emptySlot.style.visibility = 'hidden';
+            emptySlot.style.pointerEvents = 'none';
+            grid.appendChild(emptySlot);
+        }
+
         card.appendChild(grid);
 
-        const sum = appData.tables[ti].players.reduce((a,b)=>a+b,0);
-        const summary = document.createElement('div');
-        summary.className = 'table-summary';
-        summary.innerHTML = `<span>Входов:</span><span>${sum}</span>`;
-        card.appendChild(summary);
+        if (!isDealer) {
+            const sum = appData.tables[ti].players.reduce((a,b)=>a+b,0);
+            const summary = document.createElement('div');
+            summary.className = 'table-summary';
+            summary.innerHTML = `<span>Входов:</span><span>${sum}</span>`;
+            card.appendChild(summary);
+        }
 
         slide.appendChild(card);
         track.appendChild(slide);
@@ -1088,7 +1051,7 @@ function attachDragHandlers(btn, ti, si, name, isElim) {
             const threshold = pressState.pointerType === 'touch' ? MOVE_THRESHOLD_TOUCH : MOVE_THRESHOLD_MOUSE;
             const elapsed = Date.now() - pressState.startTime;
 
-            // На тач: 100 мс или сдвиг больше порога — любой направление
+            // На тач: 100 мс или сдвиг — любое направление
             if (dx > threshold || dy > threshold || (pressState.pointerType === 'touch' && elapsed > 100 && (dx > 3 || dy > 3))) {
                 beginDrag(e);
             }
@@ -1160,7 +1123,7 @@ function highlightTargetUnder(x, y) {
         const oldCard = dragState.targetEl.closest('.table-card');
         if (oldCard) oldCard.classList.remove('drag-target');
     }
-    if (targetBtn && targetBtn !== dragState.sourceEl) {
+    if (targetBtn && targetBtn !== dragState.sourceEl && !targetBtn.classList.contains('extra-slot')) {
         targetBtn.classList.add('drag-over');
         dragState.targetEl = targetBtn;
         const card = targetBtn.closest('.table-card');
@@ -1404,7 +1367,7 @@ function getImbalanceInfo() {
 }
 
 function checkBalance(silent = false) {
-    if (isDealer) return;   // у дилера нет окна дисбаланса
+    if (isDealer) return;
     const info = getImbalanceInfo();
     renderTables();
     const overlay = document.getElementById('imbalanceOverlay');
@@ -1609,7 +1572,7 @@ function updateDealerTimer() {
     const anteEl = document.getElementById('dealerAnte');
 
     if (levelEl) {
-        if (isFinalLevel(level)) levelEl.textContent = `Уровень ${getLevelNumber(level)} (финал)`;
+        if (isFinalLevel(level)) levelEl.textContent = `Уровень ${getLevelNumber(level)}`;
         else if (isBreakLevel(level)) levelEl.textContent = 'ПЕРЕРЫВ';
         else levelEl.textContent = `Уровень ${getLevelNumber(level)}`;
     }
