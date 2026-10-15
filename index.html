@@ -102,6 +102,9 @@
 
     <!-- МИНИ-ТАЙМЕР ДЛЯ ДИЛЕРА -->
     <div class="dealer-topbar" id="dealerTopbar" style="display:none;">
+        <button class="dealer-burger-btn" onclick="toggleDealerMenu()" title="Меню дилера">
+            <i class="fas fa-bars"></i>
+        </button>
         <div class="dealer-timer-row">
             <span class="dealer-level" id="dealerLevel">Уровень 1</span>
             <span class="dealer-time" id="dealerTime">15:00</span>
@@ -358,6 +361,31 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- МЕНЮ ДИЛЕРА -->
+    <div class="dealer-menu-backdrop" id="dealerMenuBackdrop" onclick="closeDealerMenu()"></div>
+    <div class="dealer-menu" id="dealerMenu">
+        <h2><i class="fas fa-user-tie"></i> Дилер</h2>
+        <div class="dealer-menu-sync">
+            <span class="sync-dot" id="menuSyncDot"></span>
+            <span id="menuSyncText">Не подключено</span>
+        </div>
+        <div class="room-status">
+            <div class="room-code-row">
+                <span class="room-code-label">Код комнаты:</span>
+                <span class="room-code" id="menuRoomCode">—</span>
+            </div>
+            <button class="room-copy-btn" onclick="copyRoomCodeOnly()">
+                <i class="fas fa-copy"></i> Скопировать код
+            </button>
+        </div>
+        <button class="dealer-menu-btn" onclick="changeDealerRoom()">
+            <i class="fas fa-arrow-right-arrow-left"></i> Сменить комнату
+        </button>
+        <button class="dealer-menu-btn dealer-menu-leave" onclick="leaveRoom()">
+            <i class="fas fa-sign-out-alt"></i> Выйти из комнаты
+        </button>
     </div>
 
     <!-- МОДАЛКА ИМЕНИ -->

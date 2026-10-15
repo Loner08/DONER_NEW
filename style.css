@@ -1096,107 +1096,407 @@ body.role-dealer .burger-menu,
 body.role-dealer .mode-switch-btn,
 body.role-dealer .sidebar,
 body.role-dealer .left-panel,
-body.role-dealer .album-add-remove {
+body.role-dealer .album-add-remove,
+body.role-dealer .header,
+body.role-dealer .total-block,
+body.role-dealer .eliminated-box,
+body.role-dealer .table-indicator,
+body.role-dealer .divider {
     display: none !important;
+}
+
+/* Главный контейнер — стол на всю ширину */
+body.role-dealer {
+    overflow: hidden;
+    padding: 0;
 }
 
 body.role-dealer .main-layout {
     flex-direction: column;
+    align-items: stretch;
     max-width: 100%;
-    padding-top: 110px;
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    padding-top: 120px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 8px;
+    gap: 0;
 }
 
 body.role-dealer .right-panel {
     flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
     width: 100%;
-    max-width: 900px;
-    margin: 0 auto;
-    gap: 12px;
+    max-width: 100%;
+    margin: 0;
+    gap: 0;
 }
 
 body.role-dealer .tables-album {
-    padding: 14px;
+    flex: 1 1 auto;
+    align-items: stretch;
+    min-height: 0;
+    padding: 6px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    gap: 6px;
 }
 
+body.role-dealer .album-viewport {
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+body.role-dealer .table-card {
+    background: var(--bg-panel);
+    border: 2px solid var(--border-card);
+    border-radius: 16px;
+    padding: 10px;
+}
+
+body.role-dealer .table-card h3 {
+    display: none;
+}
+
+/* Сетка 2×5 для дилера */
 body.role-dealer .buttons-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-rows: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 0;
 }
 
+/* Крупные карточки */
 body.role-dealer .number-btn {
-    min-height: 90px;
-    padding: 14px 10px;
+    min-height: 100px;
+    padding: 12px 8px;
+    border-radius: 14px;
+    border-width: 3px;
 }
 
 body.role-dealer .number-btn .btn-number {
-    font-size: 20px;
+    font-size: 24px;
+    font-weight: 800;
 }
 
 body.role-dealer .number-btn .btn-count {
-    font-size: 18px;
-    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 800;
+    margin-top: 6px;
 }
 
 body.role-dealer .number-btn.has-name .btn-number {
-    font-size: 18px;
+    font-size: 20px;
 }
 
 body.role-dealer .btn-table-badge {
-    width: 22px;
-    height: 22px;
-    font-size: 13px;
-    top: 4px;
-    left: 6px;
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+    top: 6px;
+    left: 8px;
 }
 
 body.role-dealer .btn-delete {
-    font-size: 18px;
-    top: 4px;
-    right: 8px;
-    padding: 4px 8px;
-}
-
-body.role-dealer .btn-minus-count {
-    font-size: 14px;
-    bottom: 4px;
-    right: 8px;
+    font-size: 22px;
+    top: 6px;
+    right: 10px;
     padding: 4px 10px;
 }
 
-body.role-dealer .table-indicator {
-    font-size: 22px;
-    padding: 10px 20px;
+body.role-dealer .btn-minus-count {
+    font-size: 16px;
+    bottom: 6px;
+    right: 10px;
+    padding: 5px 12px;
 }
 
-body.role-dealer .header {
-    padding: 14px 20px;
+/* Скрываем 10-й слот (пустой) */
+body.role-dealer .number-btn.extra-slot {
+    display: none;
 }
 
-body.role-dealer .header h1 {
+/* Убираем разделители и заголовки у дилера */
+body.role-dealer .table-summary {
+    display: none;
+}
+
+/* Растягиваем стол на всё доступное пространство */
+body.role-dealer .album-track { height: 100%; align-items: stretch; }
+body.role-dealer .table-slide { display: flex; align-items: stretch; }
+body.role-dealer .table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+body.role-dealer .buttons-grid {
+    flex: 1;
+    min-height: 0;
+    align-content: stretch;
+    grid-template-rows: repeat(2, 1fr);
+}
+body.role-dealer .number-btn {
+    min-height: 0;
+    height: 100%;
+}
+
+/* Кнопка-бургер дилера внутри верхней панели */
+.dealer-burger-btn {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    color: var(--text-main);
     font-size: 18px;
+    cursor: pointer;
+    transition: background 0.2s;
+    z-index: 510;
 }
+.dealer-burger-btn:hover { background: rgba(255, 255, 255, 0.18); }
 
-body.role-dealer .total-count {
-    font-size: 2.6em;
+/* ===== МЕНЮ ДИЛЕРА ===== */
+.dealer-menu {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 320px;
+    max-width: 85vw;
+    height: 100vh;
+    background: var(--bg-panel);
+    color: var(--text-main);
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.5);
+    padding: 26px 20px;
+    z-index: 1200;
+    transition: left 0.3s ease;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-soft);
 }
-
-body.role-dealer .total-block-value {
-    font-size: 48px;
+.dealer-menu.active { left: 0; }
+.dealer-menu h2 {
+    font-size: 20px;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--accent-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
-
-body.role-dealer .album-arrow {
-    width: 56px;
-    height: 56px;
-    font-size: 22px;
+.dealer-menu-sync {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
 }
-
-body.role-dealer .eliminated-box {
-    padding: 16px 20px;
-}
-
-body.role-dealer .eliminated-item {
+.dealer-menu .room-status { margin-bottom: 16px; }
+.dealer-menu-btn {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--bg-card-alt);
+    color: var(--text-main);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
     font-size: 15px;
-    padding: 6px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+.dealer-menu-btn:hover { filter: brightness(1.15); }
+.dealer-menu-leave {
+    background: transparent;
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+.dealer-menu-leave:hover { background: rgba(231, 76, 60, 0.15); }
+.dealer-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1100;
+    display: none;
+}
+.dealer-menu-backdrop.active { display: block; }
+body:not(.role-dealer) .dealer-menu,
+body:not(.role-dealer) .dealer-menu-backdrop { display: none !important; }
+
+/* Мини-таймер сверху */
+.dealer-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    background: var(--bg-panel);
+    border-bottom: 2px solid var(--border-soft);
+    padding: 10px 20px 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.dealer-timer-row {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    justify-content: center;
+}
+
+.dealer-level {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-primary);
+    padding: 4px 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+}
+
+.dealer-time {
+    font-size: 34px;
+    font-weight: bold;
+    color: var(--text-main);
+    font-family: 'Courier New', monospace;
+    line-height: 1;
+}
+
+.dealer-time.danger {
+    color: var(--accent-danger);
+    animation: blink 1s infinite;
+}
+
+.dealer-blinds-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.dealer-blind {
+    padding: 5px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+
+.dealer-blind-mb { background: var(--blind-mb-bg); }
+.dealer-blind-bb { background: var(--blind-bb-bg); }
+.dealer-blind-ante { background: var(--blind-ante-bg); }
+
+.dealer-sync {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.dealer-sync .sync-dot {
+    width: 8px;
+    height: 8px;
+}
+
+/* Стрелки альбома для дилера */
+body.role-dealer .album-arrow {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    border-radius: 14px;
+}
+
+/* На телефоне у дилера */
+@media (max-width: 600px) {
+    body.role-dealer .main-layout {
+        padding-top: 122px;
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .dealer-time {
+        font-size: 26px;
+    }
+
+    .dealer-level {
+        font-size: 13px;
+        padding: 3px 10px;
+    }
+
+    .dealer-blind {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+
+    body.role-dealer .album-arrow {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+
+    body.role-dealer .buttons-grid {
+        gap: 5px;
+    }
+
+    body.role-dealer .number-btn {
+        min-height: 0;
+        padding: 8px 4px;
+        border-radius: 10px;
+    }
+
+    body.role-dealer .number-btn .btn-number {
+        font-size: 16px;
+    }
+
+    body.role-dealer .number-btn .btn-count {
+        font-size: 15px;
+        margin-top: 2px;
+    }
+
+    body.role-dealer .number-btn.has-name .btn-number {
+        font-size: 13px;
+    }
+
+    body.role-dealer .btn-table-badge {
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+        top: 3px;
+        left: 4px;
+    }
+
+    body.role-dealer .btn-delete {
+        font-size: 16px;
+        top: 3px;
+        right: 5px;
+        padding: 2px 6px;
+    }
+
+    body.role-dealer .btn-minus-count {
+        font-size: 12px;
+        bottom: 3px;
+        right: 5px;
+        padding: 3px 8px;
+    }
 }
 
 /* ===== ПЛАНШЕТ ===== */
@@ -1277,7 +1577,7 @@ body.role-dealer .eliminated-item {
 
     /* Дилер на телефоне */
     body.role-dealer .main-layout {
-        padding-top: 96px;
+        padding-top: 122px;
     }
 
     .dealer-time {
@@ -1301,7 +1601,7 @@ body.role-dealer .eliminated-item {
     }
 
     body.role-dealer .number-btn {
-        min-height: 70px;
+        min-height: 0;
         padding: 10px 6px;
     }
 

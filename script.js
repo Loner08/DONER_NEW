@@ -8,6 +8,46 @@ function emptyTable() {
     };
 }
 
+// Приводит любые данные (из localStorage или Firebase) к валидной структуре.
+// Firebase не хранит пустые массивы и может отдавать массивы как объекты,
+// поэтому без нормализации appData.eliminated.some(...) падает.
+function normalizeAppData(raw) {
+    const d = raw || {};
+
+    let tables = d.tables;
+    if (!Array.isArray(tables)) tables = tables ? Object.values(tables) : [];
+    tables = tables.map(t => {
+        t = t || {};
+        let players = t.players;
+        let names = t.names;
+        if (!Array.isArray(players)) players = players ? Object.values(players) : [];
+        if (!Array.isArray(names)) names = names ? Object.values(names) : [];
+        players = players.slice(0, SEATS_PER_TABLE).map(v => Number(v) || 0);
+        names = names.slice(0, SEATS_PER_TABLE).map(v => (v == null ? '' : String(v)));
+        while (players.length < SEATS_PER_TABLE) players.push(0);
+        while (names.length < SEATS_PER_TABLE) names.push('');
+        return { players, names };
+    });
+    if (tables.length < 1) tables.push(emptyTable());
+
+    let eliminated = d.eliminated;
+    if (!Array.isArray(eliminated)) eliminated = eliminated ? Object.values(eliminated) : [];
+    eliminated = eliminated.filter(e => e != null).map(e => {
+        if (typeof e === 'string') return { name: e, order: 0, tableNumber: 0 };
+        return {
+            name: e.name,
+            order: e.order || e.seatNumber || 0,
+            tableNumber: e.tableNumber || 0
+        };
+    });
+
+    return {
+        total: Number(d.total) || 0,
+        tables,
+        eliminated
+    };
+}
+
 let appData = {
     total: 0,
     tables: [emptyTable()],
@@ -292,25 +332,7 @@ function loadData() {
         const saved = localStorage.getItem('pokerTimerData');
         if (saved) {
             const d = JSON.parse(saved);
-            if (d.appData) {
-                appData = d.appData;
-                appData.tables = (appData.tables || []).map(t => {
-                    const players = (t.players || []).slice(0, SEATS_PER_TABLE);
-                    const names = (t.names || []).slice(0, SEATS_PER_TABLE);
-                    while (players.length < SEATS_PER_TABLE) players.push(0);
-                    while (names.length < SEATS_PER_TABLE) names.push('');
-                    return { players, names };
-                });
-                if (appData.tables.length < 1) appData.tables.push(emptyTable());
-                appData.eliminated = (appData.eliminated || []).map(e => {
-                    if (typeof e === 'string') return { name: e, order: 0, tableNumber: 0 };
-                    return {
-                        name: e.name,
-                        order: e.order || e.seatNumber || 0,
-                        tableNumber: e.tableNumber || 0
-                    };
-                });
-            }
+            if (d.appData) appData = normalizeAppData(d.appData);
             if (d.timer) {
                 timer.totalSeconds = d.timer.totalSeconds ?? 15 * 60;
                 timer.maxSeconds = d.timer.maxSeconds ?? 15 * 60;
@@ -444,9 +466,10 @@ function connectToRoom(code) {
 function applyRemoteState(data) {
     if (!data) return;
 
+  try {
     if (data.ts) lastWriteTs = Math.max(lastWriteTs, data.ts);
 
-    if (data.appData) appData = data.appData;
+    if (data.appData) appData = normalizeAppData(data.appData);
 
     if (data.timer) {
         const wasRunning = timer.running;
@@ -482,6 +505,9 @@ function applyRemoteState(data) {
     if (!isDealer) updateModeSwitchLabel();
     updateAllUI();
     saveDataLocalOnly();
+  } catch (e) {
+    console.warn('applyRemoteState error:', e);
+  }
 }
 
 function startTimerLocal() {
@@ -535,11 +561,25 @@ function updateSyncStatus(status) {
             default: dText.textContent = 'Не подключено';
         }
     }
+
+    const mDot = document.getElementById('menuSyncDot');
+    const mText = document.getElementById('menuSyncText');
+    if (mDot && mText) {
+        mDot.classList.remove('online', 'offline', 'connecting');
+        switch (status) {
+            case 'online': mDot.classList.add('online'); mText.textContent = 'Синхронизировано'; break;
+            case 'offline': mDot.classList.add('offline'); mText.textContent = 'Нет связи'; break;
+            case 'connecting': mDot.classList.add('connecting'); mText.textContent = 'Подключение…'; break;
+            default: mText.textContent = 'Не подключено';
+        }
+    }
 }
 
 function updateRoomUI(openSidebar = false) {
     const codeEl = document.getElementById('roomCodeDisplay');
     if (codeEl) codeEl.textContent = roomCode || '—';
+
+    updateDealerMenuInfo();
 
     const section = document.getElementById('roomSection');
     if (section) section.style.display = roomCode ? 'block' : 'none';
@@ -669,6 +709,7 @@ function joinRoomAsDealer() {
             updateRoomUI(true);
             connectToRoom(code);
             updateAllUI();
+            updateDealerMenuInfo();
         });
 
         setTimeout(() => {
@@ -731,6 +772,7 @@ function showCopySuccess(msg) {
 
 function leaveRoom() {
     if (!confirm('Выйти из комнаты? Данные останутся в облаке, но локально продолжат работать отдельно.')) return;
+    closeDealerMenu();
     if (fbUnsubscribe) {
         try { fbUnsubscribe(); } catch(e) {}
         fbUnsubscribe = null;
@@ -751,6 +793,35 @@ function leaveRoom() {
 function skipRoom() {
     document.getElementById('roomOverlay').classList.remove('active');
     updateSyncStatus('offline');
+}
+
+// ===== МЕНЮ ДИЛЕРА =====
+function toggleDealerMenu() {
+    const menu = document.getElementById('dealerMenu');
+    const backdrop = document.getElementById('dealerMenuBackdrop');
+    if (!menu) return;
+    const open = menu.classList.toggle('active');
+    if (backdrop) backdrop.classList.toggle('active', open);
+    if (open) updateDealerMenuInfo();
+}
+
+function closeDealerMenu() {
+    const menu = document.getElementById('dealerMenu');
+    const backdrop = document.getElementById('dealerMenuBackdrop');
+    if (menu) menu.classList.remove('active');
+    if (backdrop) backdrop.classList.remove('active');
+}
+
+function updateDealerMenuInfo() {
+    const codeEl = document.getElementById('menuRoomCode');
+    if (codeEl) codeEl.textContent = roomCode || '—';
+}
+
+function changeDealerRoom() {
+    if (!confirm('Выйти из текущей комнаты и войти в другую?')) return;
+    closeDealerMenu();
+    localStorage.removeItem('pokerRoomCode');
+    location.href = location.pathname + '?role=dealer';
 }
 
 function getRoomFromUrl() {
@@ -1780,7 +1851,7 @@ function formatNumber(num) {
 
 // ===== МЕНЮ =====
 function toggleMenu() {
-    if (isDealer) return;
+    if (isDealer) { toggleDealerMenu(); return; }
     document.getElementById('sidebar').classList.toggle('active');
     updatePrizePool();
 }
@@ -1912,6 +1983,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && document.getElementById('nameModal').classList.contains('active')) confirmPlayerName();
     if (e.key === 'Escape') {
         closeNameModal();
+        closeDealerMenu();
         document.getElementById('gameModeOverlay').classList.remove('active');
     }
 });
