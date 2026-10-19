@@ -1479,16 +1479,18 @@ function getImbalanceInfo() {
     return { counts, diff, imbalanced, overloadedTables };
 }
 
-function checkBalance(silent = false) {
+function checkBalance(silent = false, forceShow = false) {
     if (isDealer) return;
     const info = getImbalanceInfo();
     renderTables();
     const overlay = document.getElementById('imbalanceOverlay');
     if (info.imbalanced) {
-        stopTimer();
+        const wasRunning = timer.running;
+        if (wasRunning) stopTimer();
         const parts = info.counts.map((c, i) => `Стол ${i + 1}: ${c}`).join(', ');
         document.getElementById('balanceText').textContent = `${parts}. Разница ${info.diff}.`;
-        if (!silent && overlay) overlay.classList.add('active');
+        // Предупреждение показываем только если таймер работал (или запуск принудительно)
+        if (!silent && (wasRunning || forceShow) && overlay) overlay.classList.add('active');
     } else {
         if (overlay) overlay.classList.remove('active');
     }
@@ -1525,7 +1527,7 @@ function startTimer() {
     if (timer.running) return;
     if (gameMode !== 'cash' && isFinalLevel(level)) return;
     const info = getImbalanceInfo();
-    if (info.imbalanced) { checkBalance(); return; }
+    if (info.imbalanced) { checkBalance(false, true); return; }
 
     timer.running = true;
     timerStartedAt = Date.now();
@@ -1542,6 +1544,8 @@ function stopTimer() {
     if (isDealer) return;
     stopTimerLocal();
     saveData();
+    // Пока таймер стоит, предупреждение о дисбалансе не показываем
+    closeBalanceOverlay();
 }
 
 function skipLevel() {
@@ -1875,8 +1879,17 @@ function updateEliminatedList() {
         list.innerHTML = '<div class="eliminated-empty">Пока никого</div>';
         return;
     }
-    const sorted = [...appData.eliminated].sort((a, b) => a.order - b.order);
-    sorted.forEach(e => {
+    // Место выбывшего = всего уникальных игроков - номер выбывания (0-й индекс массива).
+    // Пересчитываем каждый раз, поэтому при добавлении новых игроков
+    // места выбывших автоматически меняются на актуальные.
+    const totalUnique = countAllUniquePlayers();
+    const entries = appData.eliminated.map((e, idx) => {
+        const place = Math.max(1, totalUnique - idx);
+        e.order = place;
+        return { name: e.name, tableNumber: e.tableNumber, order: place };
+    });
+    entries.sort((a, b) => a.order - b.order);
+    entries.forEach(e => {
         const div = document.createElement('div');
         div.className = 'eliminated-item';
         div.innerHTML =

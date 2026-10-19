@@ -320,6 +320,7 @@ html[data-theme="mnr"] body::after {
     flex-direction: column;
     gap: 12px;
     min-width: 0;
+    transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .left-panel {
@@ -364,9 +365,9 @@ html[data-theme="mnr"] body::after {
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
 }
 
-/* Раскладка статична: запуск/остановка таймера не сдвигает экран */
-.main-layout.focus-timer .left-column { flex: 5; }
-.main-layout.focus-timer .right-panel { flex: 5; }
+/* При запуске таймер увеличивается и по горизонтали, и по вертикали */
+.main-layout.focus-timer .left-column { flex: 7; }
+.main-layout.focus-timer .right-panel { flex: 3; }
 
 .timer-section { text-align: center; }
 .timer-center { display: inline-block; max-width: 100%; }
