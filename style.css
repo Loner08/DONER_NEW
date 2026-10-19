@@ -1734,7 +1734,7 @@ body.role-dealer .album-arrow {
     font-family: 'Times New Roman', Georgia, serif;
     font-size: 72px;
     font-weight: 700;
-    color: #d4a03c;
+    color: var(--accent-primary);
     letter-spacing: 4px;
     line-height: 1;
     text-shadow:
@@ -1749,8 +1749,8 @@ body.role-dealer .album-arrow {
     background: linear-gradient(
         to right,
         transparent 0%,
-        #d4a03c 15%,
-        #d4a03c 85%,
+        var(--accent-primary) 15%,
+        var(--accent-primary) 85%,
         transparent 100%
     );
     position: relative;
@@ -1764,8 +1764,8 @@ body.role-dealer .album-arrow {
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 16px;
-    color: #d4a03c;
-    background: #232732;
+    color: var(--accent-primary);
+    background: var(--bg-panel);
     padding: 0 8px;
     line-height: 1;
 }
@@ -1774,7 +1774,7 @@ body.role-dealer .album-arrow {
     font-family: 'Times New Roman', Georgia, serif;
     font-size: 54px;
     font-weight: 700;
-    color: #7b2d42;
+    color: var(--accent-danger);
     letter-spacing: 8px;
     line-height: 1;
     text-shadow:
