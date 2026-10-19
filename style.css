@@ -1211,9 +1211,9 @@ body.role-dealer .main-layout {
     min-height: 100vh;
     min-height: 100dvh;
     padding-top: 140px;
-    padding-left: 0;
-    padding-right: 0;
-    padding-bottom: 0;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-bottom: 14px;
     gap: 0;
 }
 
@@ -1573,8 +1573,8 @@ body.role-dealer .album-next { right: 6px; }
 @media (max-width: 600px) {
     body.role-dealer .main-layout {
         padding-top: 140px;
-        padding-left: 0;
-        padding-right: 0;
+        padding-left: 14px;
+        padding-right: 14px;
     }
 
     .dealer-time {
@@ -1650,8 +1650,8 @@ body.role-dealer .album-next { right: 6px; }
     .main-layout.focus-timer .left-column,
     .main-layout.focus-timer .left-panel,
     .main-layout.focus-timer .right-panel { flex: none; }
-    .main-layout.focus-timer .timer-wrapper { width: 300px; height: 300px; }
-    .main-layout.focus-timer .timer-display { font-size: 54px; }
+.main-layout.focus-timer .timer-wrapper { width: 340px; height: 340px; }
+.main-layout.focus-timer .timer-display { font-size: 62px; }
 }
 
 /* ===== ТЕЛЕФОН ===== */
