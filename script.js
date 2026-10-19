@@ -457,6 +457,9 @@ function connectToRoom(code) {
         } finally {
             isApplyingRemote = false;
         }
+
+        // Хост должен проверять баланс и после изменений, сделанных дилером
+        if (!isDealer) checkBalance();
     }, (error) => {
         console.warn('Firebase listen error:', error);
         updateSyncStatus('offline');
@@ -921,6 +924,7 @@ function addTable() {
     updateTableIndicator();
     updateAlbumPosition();
     saveData();
+    checkBalance();
 }
 
 function removeTable() {
@@ -943,6 +947,7 @@ function removeTable() {
     updateAlbumPosition();
     updateAllUI();
     saveData();
+    checkBalance();
 }
 
 function updateAddRemoveButtons() {
@@ -1313,6 +1318,7 @@ function performMove(srcTi, srcSi, targetTi, targetSi) {
     renderTables();
     updateAllUI();
     saveData();
+    if (!isDealer) checkBalance();
 }
 
 // ===== КЛИК =====
