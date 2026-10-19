@@ -212,11 +212,90 @@ html[data-theme="blue"] {
     --table-indicator-text: #ffffff;
 }
 
+/* 7. M&R POKER */
+html[data-theme="mnr"] {
+    --bg-body: #2b2f3a;
+    --bg-panel: #2b2f3a;
+    --bg-card: #343a48;
+    --bg-card-alt: #3d4454;
+    --bg-total: linear-gradient(135deg, #5e1b2e, #7b2d42);
+
+    --accent-primary: #d4a03c;
+    --accent-secondary: #d4a03c;
+    --accent-danger: #7b2d42;
+    --accent-info: #d4a03c;
+
+    --text-main: #f0e6d2;
+    --text-dim: #a89b82;
+    --text-on-accent: #2b2f3a;
+
+    --border-soft: rgba(212, 160, 60, 0.18);
+    --border-card: rgba(212, 160, 60, 0.45);
+
+    --blind-mb-bg: linear-gradient(135deg, #d4a03c, #a87c1c);
+    --blind-bb-bg: linear-gradient(135deg, #5e1b2e, #7b2d42);
+    --blind-ante-bg: linear-gradient(135deg, #8a6631, #5e4015);
+
+    --timer-track: rgba(212, 160, 60, 0.12);
+    --timer-progress: #d4a03c;
+
+    --btn-start: #d4a03c;
+    --btn-stop: #7b2d42;
+    --btn-skip: #a87c1c;
+    --btn-prev: #5e1b2e;
+
+    --divider: rgba(212, 160, 60, 0.22);
+
+    --body-gradient: linear-gradient(135deg, #232732 0%, #2b2f3a 50%, #232732 100%);
+    --panel-overlay: rgba(35, 39, 50, 0.85);
+    --table-card-bg: rgba(52, 58, 72, 0.9);
+    --number-btn-bg: linear-gradient(145deg, #3d4454, #343a48);
+    --number-btn-bg-has-name: linear-gradient(145deg, #4a3a2a, #33281c);
+    --table-indicator-bg: linear-gradient(to right, #343a48, #3d4454);
+    --table-indicator-text: #d4a03c;
+}
+
 body {
     background: var(--body-gradient);
     min-height: 100vh;
     padding: 20px;
     color: var(--text-main);
+    position: relative;
+}
+
+/* Золотая рамка вокруг всей страницы — только для темы M&R */
+html[data-theme="mnr"] body::before {
+    content: '';
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    border: 1px solid var(--accent-primary);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 8px;
+    box-shadow:
+        0 0 0 1px rgba(212, 160, 60, 0.2),
+        inset 0 0 40px rgba(212, 160, 60, 0.04);
+}
+
+/* Тонкие золотые линии по бокам */
+html[data-theme="mnr"] body::after {
+    content: '';
+    position: fixed;
+    top: 40px;
+    left: 24px;
+    right: 24px;
+    height: 1px;
+    background: linear-gradient(to right,
+        transparent,
+        var(--accent-primary) 20%,
+        var(--accent-primary) 80%,
+        transparent);
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .divider {
@@ -740,6 +819,7 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
 .swatch-sport { background: linear-gradient(135deg, #FD7014 50%, #222831 50%); }
 .swatch-native { background: linear-gradient(135deg, #667eea 50%, #764ba2 50%); }
 .swatch-blue { background: linear-gradient(135deg, #ffffff 50%, #1e3c72 50%); }
+.swatch-mnr { background: linear-gradient(135deg, #d4a03c 50%, #5e1b2e 50%); }
 
 .auto-calculation { border-color: #2ecc71; }
 .distribution-section { border-color: #f39c12; }
@@ -1638,4 +1718,154 @@ body.role-dealer .album-arrow {
     .blind-value { font-size: 18px; }
     .blind-label { font-size: 13px; }
     .blind-display { padding: 6px 10px; gap: 6px; }
+}
+
+/* ===== ЛОГОТИП M&R POKER ===== */
+.brand-logo {
+    text-align: center;
+    margin: 40px auto 20px;
+    padding: 20px;
+    max-width: 400px;
+    user-select: none;
+    opacity: 0.95;
+}
+
+.brand-logo .brand-top {
+    font-family: 'Times New Roman', Georgia, serif;
+    font-size: 72px;
+    font-weight: 700;
+    color: #d4a03c;
+    letter-spacing: 4px;
+    line-height: 1;
+    text-shadow:
+        0 2px 0 rgba(0,0,0,0.3),
+        0 0 20px rgba(212, 160, 60, 0.25);
+}
+
+.brand-logo .brand-line {
+    width: 90%;
+    height: 2px;
+    margin: 10px auto 12px;
+    background: linear-gradient(
+        to right,
+        transparent 0%,
+        #d4a03c 15%,
+        #d4a03c 85%,
+        transparent 100%
+    );
+    position: relative;
+}
+
+/* Кружок-фишка по центру линии */
+.brand-logo .brand-line::after {
+    content: '♣';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    color: #d4a03c;
+    background: #232732;
+    padding: 0 8px;
+    line-height: 1;
+}
+
+.brand-logo .brand-bottom {
+    font-family: 'Times New Roman', Georgia, serif;
+    font-size: 54px;
+    font-weight: 700;
+    color: #7b2d42;
+    letter-spacing: 8px;
+    line-height: 1;
+    text-shadow:
+        0 2px 0 rgba(0,0,0,0.3),
+        0 0 20px rgba(123, 45, 66, 0.35);
+}
+
+/* Логотип скрыт у дилера */
+body.role-dealer .brand-logo {
+    display: none;
+}
+
+/* На телефоне — поменьше */
+@media (max-width: 600px) {
+    .brand-logo {
+        margin: 24px auto 12px;
+        padding: 10px;
+    }
+    .brand-logo .brand-top { font-size: 44px; letter-spacing: 2px; }
+    .brand-logo .brand-bottom { font-size: 32px; letter-spacing: 5px; }
+    .brand-logo .brand-line::after { font-size: 12px; padding: 0 6px; }
+}
+
+/* Диагональные полосы на плашках — для темы M&R */
+html[data-theme="mnr"] .header,
+html[data-theme="mnr"] .total-block,
+html[data-theme="mnr"] .table-indicator {
+    position: relative;
+    overflow: hidden;
+}
+
+html[data-theme="mnr"] .header::before,
+html[data-theme="mnr"] .total-block::before,
+html[data-theme="mnr"] .table-indicator::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        135deg,
+        transparent 0,
+        transparent 6px,
+        rgba(212, 160, 60, 0.08) 6px,
+        rgba(212, 160, 60, 0.08) 7px
+    );
+    pointer-events: none;
+    z-index: 0;
+}
+
+html[data-theme="mnr"] .header > *,
+html[data-theme="mnr"] .total-block > *,
+html[data-theme="mnr"] .table-indicator > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* Плашка "Всего очков" — бордовая с золотой окантовкой */
+html[data-theme="mnr"] .total-block {
+    background: linear-gradient(135deg, #5e1b2e, #7b2d42) !important;
+    border: 2px solid var(--accent-primary);
+    box-shadow:
+        inset 0 0 30px rgba(0, 0, 0, 0.3),
+        0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="mnr"] .total-block-title {
+    color: #f0e6d2;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+html[data-theme="mnr"] .total-block-value {
+    color: #ffffff;
+    text-shadow: 0 0 15px rgba(212, 160, 60, 0.4);
+}
+
+/* Плашка "Общее количество входов" */
+html[data-theme="mnr"] .header {
+    background: linear-gradient(135deg, #5e1b2e, #7b2d42);
+    border: 2px solid var(--accent-primary);
+}
+
+html[data-theme="mnr"] .header h1 {
+    color: #f0e6d2;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+html[data-theme="mnr"] .total-count {
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(212, 160, 60, 0.4);
 }
