@@ -308,7 +308,7 @@ html[data-theme="mnr"] body::after {
 .main-layout {
     display: flex;
     gap: 20px;
-    max-width: 1500px;
+    max-width: 100%;
     margin: 0 auto;
     align-items: flex-start;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1197,8 +1197,10 @@ body.role-dealer .main-layout {
     max-width: 100%;
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     min-height: 100vh;
-    padding-top: 120px;
+    min-height: 100dvh;
+    padding-top: 140px;
     padding-left: 8px;
     padding-right: 8px;
     padding-bottom: 8px;
@@ -1243,24 +1245,26 @@ body.role-dealer .table-card h3 {
     display: none;
 }
 
-/* Сетка 3×3 для дилера */
+/* Сетка 2×5 для дилера */
 body.role-dealer .buttons-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
-    grid-template-rows: repeat(3, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
     margin-bottom: 0;
 }
 
 /* Крупные карточки */
 body.role-dealer .number-btn {
     min-height: 0;
-    padding: 14px 8px;
-    border-radius: 16px;
+    min-width: 0;
+    padding: 10px 4px;
+    border-radius: 14px;
     border-width: 3px;
+    overflow: hidden;
 }
 
 body.role-dealer .number-btn .btn-number {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 800;
     line-height: 1.1;
     max-width: 100%;
@@ -1268,13 +1272,13 @@ body.role-dealer .number-btn .btn-number {
 }
 
 body.role-dealer .number-btn .btn-count {
-    font-size: 26px;
+    font-size: 20px;
     font-weight: 800;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 body.role-dealer .number-btn.has-name .btn-number {
-    font-size: 22px;
+    font-size: 18px;
 }
 
 body.role-dealer .btn-table-badge {
@@ -1311,7 +1315,7 @@ body.role-dealer .table-summary {
 
 /* Растягиваем стол на всё доступное пространство */
 body.role-dealer .album-track { height: 100%; align-items: stretch; }
-body.role-dealer .table-slide { display: flex; align-items: stretch; }
+body.role-dealer .table-slide { display: flex; align-items: stretch; height: 100%; }
 body.role-dealer .table-card {
     flex: 1;
     display: flex;
@@ -1322,7 +1326,7 @@ body.role-dealer .buttons-grid {
     flex: 1;
     min-height: 0;
     align-content: stretch;
-    grid-template-rows: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
 }
 body.role-dealer .number-btn {
     min-height: 0;
@@ -1500,6 +1504,32 @@ body:not(.role-dealer) .dealer-menu-backdrop { display: none !important; }
     height: 8px;
 }
 
+/* Логотип под таймером дилера */
+.dealer-brand {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.dealer-brand-top {
+    font-family: 'Times New Roman', Georgia, serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent-primary);
+}
+
+.dealer-brand-bottom {
+    font-family: 'Times New Roman', Georgia, serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent-danger);
+}
+
 /* Стрелки альбома для дилера */
 body.role-dealer .album-arrow {
     width: 60px;
@@ -1511,7 +1541,7 @@ body.role-dealer .album-arrow {
 /* На телефоне у дилера */
 @media (max-width: 600px) {
     body.role-dealer .main-layout {
-        padding-top: 122px;
+        padding-top: 140px;
         padding-left: 4px;
         padding-right: 4px;
     }
@@ -1660,7 +1690,7 @@ body.role-dealer .album-arrow {
 
     /* Дилер на телефоне */
     body.role-dealer .main-layout {
-        padding-top: 122px;
+        padding-top: 140px;
     }
 
     .dealer-time {
@@ -1726,8 +1756,8 @@ body.role-dealer .album-arrow {
 /* ===== ЛОГОТИП M&R POKER ===== */
 .brand-logo {
     text-align: center;
-    margin: 40px auto 20px;
-    padding: 20px;
+    margin: 10px auto 6px;
+    padding: 10px;
     max-width: 400px;
     user-select: none;
     opacity: 0.95;
