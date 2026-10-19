@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Покерный таймер</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
 
     <!-- Firebase SDK (module) -->
     <script type="module">
@@ -125,6 +125,7 @@
     </div>
 
     <div class="main-layout">
+        <div class="left-column">
         <!-- ЛЕВАЯ ПАНЕЛЬ -->
         <div class="left-panel" id="leftPanel">
             <div class="timer-section">
@@ -175,13 +176,6 @@
                 </div>
             </div>
 
-            <!-- ЛОГОТИП -->
-            <div class="brand-logo">
-                <div class="brand-top">M&amp;R</div>
-                <div class="brand-line"></div>
-                <div class="brand-bottom">POKER</div>
-            </div>
-
             <div class="break-display" id="breakDisplay" style="display:none;">
                 ПЕРЕРЫВ
             </div>
@@ -189,6 +183,14 @@
             <div class="next-level-only" id="nextLevelOnly">
                 Следующий: Уровень 2 — 100 / 200
             </div>
+        </div>
+
+        <!-- ЛОГОТИП (за окном таймера) -->
+        <div class="brand-logo">
+            <div class="brand-top">M&amp;R</div>
+            <div class="brand-line"></div>
+            <div class="brand-bottom">POKER</div>
+        </div>
         </div>
 
         <!-- ПРАВАЯ ПАНЕЛЬ -->
@@ -416,6 +418,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 </html>

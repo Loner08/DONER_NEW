@@ -314,8 +314,16 @@ html[data-theme="mnr"] body::after {
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.left-panel {
+.left-column {
     flex: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.left-panel {
+    flex: 1 1 auto;
     position: relative;
     border-radius: 20px;
     padding: 25px;
@@ -357,7 +365,7 @@ html[data-theme="mnr"] body::after {
 }
 
 /* Раскладка статична: запуск/остановка таймера не сдвигает экран */
-.main-layout.focus-timer .left-panel { flex: 5; }
+.main-layout.focus-timer .left-column { flex: 5; }
 .main-layout.focus-timer .right-panel { flex: 5; }
 
 .timer-section { text-align: center; }
@@ -1176,6 +1184,7 @@ body.touch-drag-active .album-arrow { animation: arrowPulse 1.2s infinite; }
 body.role-dealer .burger-menu,
 body.role-dealer .mode-switch-btn,
 body.role-dealer .sidebar,
+body.role-dealer .left-column,
 body.role-dealer .left-panel,
 body.role-dealer .album-add-remove,
 body.role-dealer .header,
@@ -1202,9 +1211,9 @@ body.role-dealer .main-layout {
     min-height: 100vh;
     min-height: 100dvh;
     padding-top: 140px;
-    padding-left: 8px;
-    padding-right: 8px;
-    padding-bottom: 8px;
+    padding-left: 0;
+    padding-right: 0;
+    padding-bottom: 0;
     gap: 0;
 }
 
@@ -1219,27 +1228,35 @@ body.role-dealer .right-panel {
 }
 
 body.role-dealer .tables-album {
+    position: relative;
     flex: 1 1 auto;
     align-items: stretch;
     min-height: 0;
-    padding: 6px;
+    padding: 0;
     background: transparent;
     border: none;
     box-shadow: none;
-    gap: 6px;
+    gap: 0;
 }
 
+/* Важно: viewport — обычный блок, иначе ширина трека считается от числа столов
+   и карточки меняют размер при добавлении стола */
 body.role-dealer .album-viewport {
-    display: flex;
+    display: block;
     overflow: hidden;
     min-height: 0;
+    height: 100%;
+}
+
+body.role-dealer .table-slide {
+    padding: 0;
 }
 
 body.role-dealer .table-card {
-    background: var(--bg-panel);
-    border: 2px solid var(--border-card);
-    border-radius: 16px;
-    padding: 10px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
 }
 
 body.role-dealer .table-card h3 {
@@ -1250,7 +1267,7 @@ body.role-dealer .table-card h3 {
 body.role-dealer .buttons-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     grid-template-rows: repeat(5, 1fr);
-    gap: 8px;
+    gap: 4px;
     margin-bottom: 0;
 }
 
@@ -1531,20 +1548,33 @@ body:not(.role-dealer) .dealer-menu-backdrop { display: none !important; }
     color: var(--accent-danger);
 }
 
-/* Стрелки альбома для дилера */
+/* Стрелки альбома для дилера — поверх стола, чтобы карточки были вплотную к краям */
 body.role-dealer .album-arrow {
-    width: 60px;
-    height: 60px;
-    font-size: 24px;
-    border-radius: 14px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 6;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    border-radius: 12px;
+    opacity: 0.85;
 }
+
+body.role-dealer .album-arrow:hover {
+    transform: translateY(-50%) scale(1.08);
+    opacity: 1;
+}
+
+body.role-dealer .album-prev { left: 6px; }
+body.role-dealer .album-next { right: 6px; }
 
 /* На телефоне у дилера */
 @media (max-width: 600px) {
     body.role-dealer .main-layout {
         padding-top: 140px;
-        padding-left: 4px;
-        padding-right: 4px;
+        padding-left: 0;
+        padding-right: 0;
     }
 
     .dealer-time {
@@ -1616,7 +1646,8 @@ body.role-dealer .album-arrow {
 /* ===== ПЛАНШЕТ ===== */
 @media (max-width: 1000px) {
     .main-layout { flex-direction: column; }
-    .left-panel, .right-panel { flex: none; width: 100%; }
+    .left-column, .left-panel, .right-panel { flex: none; width: 100%; }
+    .main-layout.focus-timer .left-column,
     .main-layout.focus-timer .left-panel,
     .main-layout.focus-timer .right-panel { flex: none; }
     .main-layout.focus-timer .timer-wrapper { width: 300px; height: 300px; }
