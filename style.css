@@ -1243,35 +1243,38 @@ body.role-dealer .table-card h3 {
     display: none;
 }
 
-/* Сетка 2×5 для дилера */
+/* Сетка 3×3 для дилера */
 body.role-dealer .buttons-grid {
-    grid-template-columns: repeat(5, 1fr) !important;
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: repeat(3, 1fr);
     gap: 10px;
     margin-bottom: 0;
 }
 
 /* Крупные карточки */
 body.role-dealer .number-btn {
-    min-height: 100px;
-    padding: 12px 8px;
-    border-radius: 14px;
+    min-height: 0;
+    padding: 14px 8px;
+    border-radius: 16px;
     border-width: 3px;
 }
 
 body.role-dealer .number-btn .btn-number {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 800;
+    line-height: 1.1;
+    max-width: 100%;
+    word-break: break-word;
 }
 
 body.role-dealer .number-btn .btn-count {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 800;
     margin-top: 6px;
 }
 
 body.role-dealer .number-btn.has-name .btn-number {
-    font-size: 20px;
+    font-size: 22px;
 }
 
 body.role-dealer .btn-table-badge {
@@ -1319,7 +1322,7 @@ body.role-dealer .buttons-grid {
     flex: 1;
     min-height: 0;
     align-content: stretch;
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
 }
 body.role-dealer .number-btn {
     min-height: 0;
@@ -1539,21 +1542,21 @@ body.role-dealer .album-arrow {
 
     body.role-dealer .number-btn {
         min-height: 0;
-        padding: 8px 4px;
-        border-radius: 10px;
+        padding: 12px 5px;
+        border-radius: 14px;
     }
 
     body.role-dealer .number-btn .btn-number {
-        font-size: 16px;
+        font-size: 24px;
     }
 
     body.role-dealer .number-btn .btn-count {
-        font-size: 15px;
-        margin-top: 2px;
+        font-size: 22px;
+        margin-top: 4px;
     }
 
     body.role-dealer .number-btn.has-name .btn-number {
-        font-size: 13px;
+        font-size: 19px;
     }
 
     body.role-dealer .btn-table-badge {
@@ -1682,19 +1685,19 @@ body.role-dealer .album-arrow {
 
     body.role-dealer .number-btn {
         min-height: 0;
-        padding: 10px 6px;
+        padding: 12px 5px;
     }
 
     body.role-dealer .number-btn .btn-number {
-        font-size: 16px;
+        font-size: 24px;
     }
 
     body.role-dealer .number-btn .btn-count {
-        font-size: 15px;
+        font-size: 22px;
     }
 
     body.role-dealer .number-btn.has-name .btn-number {
-        font-size: 14px;
+        font-size: 19px;
     }
 
     body.role-dealer .table-indicator {
