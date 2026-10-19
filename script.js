@@ -76,7 +76,7 @@ let mbScore = 100;
 let bbScore = 100;
 let anteScore = 0;
 
-let menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
+let menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false, drag: false };
 
 // ===== РОЛЬ =====
 let isDealer = false;
@@ -245,6 +245,7 @@ window.onload = function() {
     }
 
     loadData();
+    loadDragSpeed();
     restoreTimerAfterReload();
 
     const urlRoom = getRoomFromUrl();
@@ -1095,7 +1096,38 @@ let justDragged = false;
 const MOVE_THRESHOLD_MOUSE = 6;
 const MOVE_THRESHOLD_TOUCH = 8;
 const EDGE_ZONE = 60;
-const AUTO_SCROLL_INTERVAL = 350;
+const DRAG_SPEED_MIN = 150;
+const DRAG_SPEED_MAX = 1200;
+const DRAG_SPEED_DEFAULT = 500;
+let dragSwitchDelay = DRAG_SPEED_DEFAULT;
+
+function loadDragSpeed() {
+    let value = DRAG_SPEED_DEFAULT;
+    try {
+        const saved = parseInt(localStorage.getItem('pokerDragSpeed') || '', 10);
+        if (!isNaN(saved)) value = saved;
+    } catch(e) {}
+    applyDragSpeed(value, false);
+}
+
+function setDragSpeed(value) {
+    applyDragSpeed(parseInt(value, 10) || DRAG_SPEED_DEFAULT, true);
+}
+
+function applyDragSpeed(value, persist) {
+    dragSwitchDelay = Math.min(DRAG_SPEED_MAX, Math.max(DRAG_SPEED_MIN, value));
+    ['dragSpeedRange', 'dealerDragSpeedRange'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = dragSwitchDelay;
+    });
+    ['dragSpeedValue', 'dealerDragSpeedValue'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = dragSwitchDelay;
+    });
+    if (persist) {
+        try { localStorage.setItem('pokerDragSpeed', String(dragSwitchDelay)); } catch(e) {}
+    }
+}
 
 function attachDragHandlers(btn, ti, si, name, isElim) {
     if (!name || isElim) return;
@@ -1232,7 +1264,7 @@ function handleEdgeAutoScroll(clientX) {
 
     if (zone) {
         if (autoScrollTimer && autoScrollTimer._zone === zone) return;
-        if (autoScrollTimer) clearInterval(autoScrollTimer);
+        if (autoScrollTimer) { clearTimeout(autoScrollTimer); clearInterval(autoScrollTimer); }
         const step = () => {
             if (zone === 'prev' && currentTableIndex > 0) {
                 currentTableIndex--; updateAlbumPosition(); updateTableIndicator();
@@ -1240,11 +1272,15 @@ function handleEdgeAutoScroll(clientX) {
                 currentTableIndex++; updateAlbumPosition(); updateTableIndicator();
             }
         };
-        step();
-        autoScrollTimer = setInterval(step, AUTO_SCROLL_INTERVAL);
+        // Сначала выдерживаем паузу, затем переключаем с выбранной скоростью
+        autoScrollTimer = setTimeout(() => {
+            step();
+            autoScrollTimer = setInterval(step, dragSwitchDelay);
+            autoScrollTimer._zone = zone;
+        }, dragSwitchDelay);
         autoScrollTimer._zone = zone;
     } else {
-        if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
+        if (autoScrollTimer) { clearTimeout(autoScrollTimer); clearInterval(autoScrollTimer); autoScrollTimer = null; }
     }
 }
 
@@ -1280,7 +1316,7 @@ function finishDrag(e) {
 
     window.removeEventListener('wheel', onDragWheel);
     document.body.classList.remove('touch-drag-active');
-    if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
+    if (autoScrollTimer) { clearTimeout(autoScrollTimer); clearInterval(autoScrollTimer); autoScrollTimer = null; }
 
     dragState = null;
     pressState = null;
@@ -1967,7 +2003,7 @@ function resetAll() {
     const custom = document.getElementById('customMultiplier');
     if (custom) custom.value = '';
 
-    menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false };
+    menuExpanded = { room: false, theme: false, prize: false, auto: false, dist: false, drag: false };
     closeBalanceOverlay();
 
     if (gameMode) applyGameMode();

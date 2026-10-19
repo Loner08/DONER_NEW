@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Покерный таймер</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=8">
+    <link rel="stylesheet" href="style.css?v=10">
 
     <!-- Firebase SDK (module) -->
     <script type="module">
@@ -378,6 +378,22 @@
                 </div>
             </div>
         </div>
+
+        <div class="menu-section drag-speed-section">
+            <div class="section-header" onclick="toggleSection('drag')">
+                <h3><i class="fas fa-hand-pointer"></i> Перетаскивание</h3>
+                <span class="toggle-arrow">▼</span>
+            </div>
+            <div class="section-content" id="dragSection">
+                <div class="drag-speed-row">
+                    <label for="dragSpeedRange">Смена столов</label>
+                    <span class="drag-speed-value"><span id="dragSpeedValue">500</span> мс</span>
+                </div>
+                <input type="range" id="dragSpeedRange" class="drag-speed-range"
+                    min="150" max="1200" step="50" value="500" oninput="setDragSpeed(this.value)">
+                <div class="drag-speed-hint">Меньше — быстрее переключение, больше — медленнее</div>
+            </div>
+        </div>
     </div>
 
     <!-- МЕНЮ ДИЛЕРА -->
@@ -396,6 +412,15 @@
             <button class="room-copy-btn" onclick="copyRoomCodeOnly()">
                 <i class="fas fa-copy"></i> Скопировать код
             </button>
+        </div>
+        <div class="dealer-menu-speed">
+            <div class="drag-speed-row">
+                <label for="dealerDragSpeedRange">Смена столов</label>
+                <span class="drag-speed-value"><span id="dealerDragSpeedValue">500</span> мс</span>
+            </div>
+            <input type="range" id="dealerDragSpeedRange" class="drag-speed-range"
+                min="150" max="1200" step="50" value="500" oninput="setDragSpeed(this.value)">
+            <div class="drag-speed-hint">Меньше — быстрее, больше — медленнее</div>
         </div>
         <button class="dealer-menu-btn" onclick="changeDealerRoom()">
             <i class="fas fa-arrow-right-arrow-left"></i> Сменить комнату
@@ -418,6 +443,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=8"></script>
+    <script src="script.js?v=10"></script>
 </body>
 </html>
