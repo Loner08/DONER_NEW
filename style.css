@@ -356,8 +356,9 @@ html[data-theme="mnr"] body::after {
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
 }
 
-.main-layout.focus-timer .left-panel { flex: 7; }
-.main-layout.focus-timer .right-panel { flex: 3; }
+/* Раскладка статична: запуск/остановка таймера не сдвигает экран */
+.main-layout.focus-timer .left-panel { flex: 5; }
+.main-layout.focus-timer .right-panel { flex: 5; }
 
 .timer-section { text-align: center; }
 .timer-center { display: inline-block; max-width: 100%; }
@@ -372,7 +373,7 @@ html[data-theme="mnr"] body::after {
                 height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.main-layout.focus-timer .timer-wrapper { width: 340px; height: 340px; }
+.main-layout.focus-timer .timer-wrapper { width: 300px; height: 300px; }
 
 .timer-wrapper svg.progress-ring {
     width: 100%; height: 100%; display: block; transform: rotate(-90deg);
@@ -408,7 +409,7 @@ html[data-theme="mnr"] body::after {
     text-shadow: 0 2px 6px rgba(0,0,0,0.35);
     transition: font-size 0.5s, color 0.3s;
 }
-.main-layout.focus-timer .timer-display { font-size: 62px; }
+.main-layout.focus-timer .timer-display { font-size: 54px; }
 .timer-display.danger { color: var(--accent-danger) !important; animation: blink 1s infinite; }
 
 .timer-controls { display: flex; justify-content: center; gap: 12px; margin-top: 12px; }
@@ -1245,10 +1246,10 @@ body.role-dealer .table-card h3 {
     display: none;
 }
 
-/* Сетка 2×5 для дилера */
+/* Сетка 5×2 для дилера (5 рядов, 2 колонки) */
 body.role-dealer .buttons-grid {
-    grid-template-columns: repeat(5, 1fr) !important;
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-rows: repeat(5, 1fr);
     gap: 8px;
     margin-bottom: 0;
 }
@@ -1257,14 +1258,14 @@ body.role-dealer .buttons-grid {
 body.role-dealer .number-btn {
     min-height: 0;
     min-width: 0;
-    padding: 10px 4px;
+    padding: 10px 8px;
     border-radius: 14px;
     border-width: 3px;
     overflow: hidden;
 }
 
 body.role-dealer .number-btn .btn-number {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 800;
     line-height: 1.1;
     max-width: 100%;
@@ -1272,13 +1273,13 @@ body.role-dealer .number-btn .btn-number {
 }
 
 body.role-dealer .number-btn .btn-count {
-    font-size: 20px;
+    font-size: 24px;
     font-weight: 800;
     margin-top: 4px;
 }
 
 body.role-dealer .number-btn.has-name .btn-number {
-    font-size: 18px;
+    font-size: 22px;
 }
 
 body.role-dealer .btn-table-badge {
@@ -1326,7 +1327,7 @@ body.role-dealer .buttons-grid {
     flex: 1;
     min-height: 0;
     align-content: stretch;
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-rows: repeat(5, 1fr);
 }
 body.role-dealer .number-btn {
     min-height: 0;
