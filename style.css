@@ -1851,17 +1851,19 @@ body.role-dealer .album-next { right: 6px; }
     position: relative;
 }
 
-/* Кружок-фишка по центру линии */
+/* Простая фишка по центру линии */
 .brand-logo .brand-line::after {
-    content: '♣';
+    content: '';
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 16px;
-    color: var(--accent-primary);
-    background: var(--bg-panel);
-    padding: 0 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    border: 3px dashed var(--bg-panel);
+    box-sizing: border-box;
     line-height: 1;
 }
 
@@ -1890,7 +1892,7 @@ body.role-dealer .brand-logo {
     }
     .brand-logo .brand-top { font-size: 44px; letter-spacing: 2px; }
     .brand-logo .brand-bottom { font-size: 32px; letter-spacing: 5px; }
-    .brand-logo .brand-line::after { font-size: 12px; padding: 0 6px; }
+    .brand-logo .brand-line::after { width: 16px; height: 16px; border-width: 2px; }
 }
 
 /* Диагональные полосы на плашках — для темы M&R */
